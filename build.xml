@@ -30,7 +30,7 @@
             <classpath refid="MendelScan.classpath"/>
         </java>
     </target>
-    <target depends="build" name="MendelScan.jar">
+    <target depends="build" name="jar">
         <mkdir dir="build/jar"/>
         <jar destfile="build/jar/MendelScan.jar" basedir="build/bin">
             <manifest>
