@@ -7,3 +7,4 @@ git commit -m 'updated javadoc'
 git push
 cd ..
 git commit -m 'update gh-pages submodule reference' gh-pages
+git push
