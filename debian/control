@@ -1,0 +1,10 @@
+Source: mendel-scan
+Section: science
+Priority: optional
+Build-Depends: debhelper (>= 7), ant, javahelper, default-jdk
+Maintainer: The Genome Institute <gmt@genome.wustl.edu>
+
+Package: mendel-scan
+Architecture: amd64
+Depends: default-jre
+Description: MendelScan!
