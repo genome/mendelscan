@@ -6,7 +6,7 @@ Maintainer: The Genome Institute <gmt@genome.wustl.edu>
 
 Package: mendelscan
 Architecture: amd64
-Depends: default-jre
+Depends: default-jre-headless
 Description: MendelScan!
 Conflicts: mendel-scan
 Replaces: mendel-scan
