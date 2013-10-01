@@ -1,0 +1,21 @@
+---
+layout: sub
+menu:
+    - text: Overview
+      href: index.html
+    - text: Documentation
+      href: documentation.html
+    - text: Install
+      href: install.html
+
+module_details:
+    name: 'MendelScan'
+    icon: res/images/icon_48.png
+    icon_16: res/images/icon_16.png
+    gmt_pkg_name: mendelscan
+    debian_pkg_name: mendelscan
+    exe_name: mendelscan
+
+include_suffix: true
+download_link: install.html
+github_url: https://github.com/genome/mendelscan
