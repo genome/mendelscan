@@ -60,6 +60,14 @@ public class MendelScan {
 			{
 				score(args, params);
 			}
+			else if(args[0].equals("rhro"))
+			{
+				rhro(args, params);
+			}
+			else if(args[0].equals("sibd"))
+			{
+				sibd(args, params);
+			}
 			else if(params.containsKey("help") || params.containsKey("h"))
 			{
 				// Print usage if -h or --help invoked //
@@ -88,6 +96,28 @@ public class MendelScan {
 	public static void score(String[] args, HashMap<String, String> params)
 	{
 		PrioritizeVCF myVCF = new PrioritizeVCF(args, params);
+	}
+
+	/**
+	 * Performs rare heterozygote rule out (RHRO) analysis on a VCF
+	 *
+	 * @param	args			Command-line arguments and parameters
+	 * @param	params			HashMap of parameters
+	 */
+	public static void rhro(String[] args, HashMap<String, String> params)
+	{
+		RareHetRuleOut myRHRO = new RareHetRuleOut(args, params);
+	}
+
+	/**
+	 * Performs shared identity-by-descent (SIBD) analysis
+	 *
+	 * @param	args			Command-line arguments and parameters
+	 * @param	params			HashMap of parameters
+	 */
+	public static void sibd(String[] args, HashMap<String, String> params)
+	{
+		SharedIBD mySIBD = new SharedIBD(args, params);
 	}
 
 
@@ -250,16 +280,25 @@ public class MendelScan {
 	    			String[] lineContents = line.split("\t");
 
 	    			try {
-	    				String familyID = lineContents[0];
-	    				String individualID = lineContents[1];
-	    				String paternalID = lineContents[2];
-	    				String maternalID = lineContents[3];
-	    				String sex = lineContents[4];
-	    				String status = lineContents[5];
+	    				if(line.startsWith("#"))
+	    				{
+	    					// Skip comment lines in PED file //
+	    				}
+	    				else
+	    				{
+		    				String familyID = lineContents[0];
+		    				String individualID = lineContents[1];
+		    				String paternalID = lineContents[2];
+		    				String maternalID = lineContents[3];
+		    				String sex = lineContents[4];
+		    				String status = lineContents[5];
 
-	    				String pedLine = familyID + "\t" + paternalID + "\t" + maternalID + "\t" + sex + "\t" + status;
+		    				String pedLine = familyID + "\t" + paternalID + "\t" + maternalID + "\t" + sex + "\t" + status;
 
-	    				ped.put(individualID, pedLine);
+		    				ped.put(individualID, pedLine);
+
+	    				}
+
 	    			}
 	    			catch(Exception e)
 	    			{
@@ -486,11 +525,11 @@ public class MendelScan {
 		{
 			score = 10;
 		}
-		else if(consequence.contains("SYNONYMOUS_CODING"))
+		else if(consequence.contains("SPLICE_SITE"))
 		{
 			score = 9;
 		}
-		else if(consequence.contains("CODING_UNKNOWN") || consequence.contains("PARTIAL_CODON") || consequence.contains("COMPLEX_INDEL"))
+		else if(consequence.contains("SYNONYMOUS_CODING") || consequence.contains("CODING_UNKNOWN") || consequence.contains("PARTIAL_CODON") || consequence.contains("COMPLEX_INDEL"))
 		{
 			score = 8;
 		}
@@ -525,6 +564,236 @@ public class MendelScan {
 
 		return(score);
 	}
+
+
+
+	/**
+	 * Returns the population score based on dbSNP information and user-specified thresholds
+	 *
+	 * @param	info	HashMap of dbSNP information from ID and INFO columns
+	 * @return			String with one of several possible dbSNP statuses
+	 */
+	static String getDbsnpStatus(HashMap<String, String> info)
+	{
+		String status = "unknown";
+
+		try {
+			if(info.containsKey("G5") || info.containsKey("G5A"))
+			{
+				status = "common";
+			}
+			else if(info.containsKey("GMAF"))
+			{
+				Double gmaf = Double.parseDouble(info.get("GMAF"));
+				if(gmaf >= 0.05)
+				{
+					status = "common";
+				}
+				else if(gmaf >= 0.01)
+				{
+					status = "uncommon";
+				}
+				else
+				{
+					status = "rare";
+				}
+			}
+			else if(info.containsKey("KGPilot123"))
+			{
+				status = "rare";
+			}
+			else if(info.containsKey("RSnumber"))
+			{
+				status = "known";
+			}
+			else
+			{
+				status = "novel";
+			}
+
+			// Also check for dbSNP flags of mutations. These override novel/known/rare variant status //
+
+			if(info.containsKey("MUT") || info.containsKey("CLN") || info.containsKey("PM"))
+			{
+				if(status.equals("novel") || status.equals("known") || status.equals("rare"))
+				{
+					status = "mutation";
+				}
+			}
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while determining dbSNP status: " + e.getMessage());
+		}
+
+		return(status);
+	}
+
+
+	/**
+	 * Determines the numbers of cases/controls ref/het/hom for a variant
+	 *
+	 * @param	genotypes	Gender, disease status, and genotype of each sample
+	 * @param	minDepth	Integer of minimum depth threshold for confident genotype calling
+	 * @return	segStatus	A string with counts of cases/controls ref/het/hom at variant position
+	 */
+	static String getSegregationStatus(HashMap<String, String> genotypes, Integer minDepth)
+	{
+		String segStatus = "unknown";
+		String altFreqs = "";
+
+		int casesCalled = 0;
+		int casesRef = 0;
+		int casesHet = 0;
+		int casesHom = 0;
+		int casesMissing = 0;
+		int controlsCalled = 0;
+		int controlsRef = 0;
+		int controlsHet = 0;
+		int controlsHom = 0;
+		int controlsMissing = 0;
+
+		// FOrmat scores for printing //
+		DecimalFormat dfFreq = new DecimalFormat("0.000");
+
+		try {
+			for (String sample : genotypes.keySet())
+			{
+				try {
+					String[] sampleContents = genotypes.get(sample).split("\t");
+					String status = sampleContents[0];
+					String gender = sampleContents[1];
+					String gt = sampleContents[2];
+					String sampleDP = sampleContents[3];
+					String sampleAD = sampleContents[4];
+
+					int sampleReads1 = 0;
+					int sampleReads2 = 0;
+
+					if(!gt.equals(".") && !gt.equals("./."))
+					{
+						// Obtain sequence depth and allele depth //
+						Integer depth = 0;
+
+						try {
+							if(sampleContents[3].length() > 0 && !sampleContents[3].equals("."))
+							{
+								depth = Integer.parseInt(sampleContents[3]);
+							}
+
+							String[] adContents = sampleAD.split(",");
+							for(int aCounter = 0; aCounter < adContents.length; aCounter++)
+							{
+								int thisReads2 = Integer.parseInt(adContents[aCounter]);
+								if(thisReads2 > sampleReads2)
+									sampleReads2 = thisReads2;
+							}
+						}
+						catch (Exception e)
+						{
+
+						}
+
+						double sampleVAF = 0.00;
+
+						if(depth > 0)
+						{
+							sampleReads1 = depth - sampleReads2;
+							sampleVAF = (double) sampleReads2 / (double) depth;
+							altFreqs += "\t" + dfFreq.format(sampleVAF);
+						}
+						else
+						{
+							altFreqs += "\tNA";
+						}
+
+
+						// Check to see if this variant matches the expectation //
+						if(status.equals("case"))
+						{
+							casesCalled++;
+							// CASE //
+							if(MendelScan.isHeterozygous(gt))
+							{
+								casesHet++;
+							}
+							else
+							{
+								if(MendelScan.isHomozygous(gt))
+								{
+									casesHom++;
+								}
+								else if(MendelScan.isReference(gt))
+								{
+									// Determine if we have sufficient depth and VAF is less than 5% //
+									if(depth >= minDepth)
+									{
+										// If SampleVAF is appreciable, don't count as ref //
+										if(sampleVAF >= 0.05)
+										{
+											// Just don't count it, or change it to het? //
+											if(sampleVAF >= 0.10)
+											{
+												casesHet++;
+											}
+										}
+										else
+										{
+											casesRef++;
+										}
+									}
+								}
+
+
+							}
+						}
+						else
+						{
+							// CONTROL //
+							controlsCalled++;
+							if(MendelScan.isHeterozygous(gt))
+							{
+								controlsHet++;
+							}
+							else if(MendelScan.isHomozygous(gt))
+							{
+								controlsHom++;
+							}
+							else if(MendelScan.isReference(gt))
+							{
+								if(depth >= minDepth)
+									controlsRef++;
+							}
+
+						}
+
+					}
+					else
+					{
+						// Genotype was filtered, so altfreqs not calculated //
+						altFreqs += "\tNA";
+					}
+				}
+				catch(Exception e)
+				{
+					System.err.println("Exception thrown while trying to parse data for " + sample + ": " + genotypes.get(sample));
+				}
+
+			}
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Exception thrown while calculating segregation score: " + e.getMessage());
+		}
+		segStatus = casesCalled + "\t" + casesRef + "\t" + casesHet + "\t" + casesHom;
+		segStatus += "\t";
+		segStatus += controlsCalled + "\t" + controlsRef + "\t" + controlsHet + "\t" + controlsHom;// + altFreqs;
+
+		return(segStatus);
+	}
+
 
 
 	/**
@@ -587,6 +856,67 @@ public class MendelScan {
 
 		return(genes);
 	}
+
+
+	/**
+	 * Load a BED file of centromeres by chromosome
+	 *
+	 * @param	fileName	Name of the input file
+
+	 * @return	genes		A hashmap of centromeres by chromosome
+	 */
+	static HashMap loadCentromeres(String fileName)
+	{
+		HashMap<String, String> regions = new HashMap<String, String>();
+
+		BufferedReader in = null;
+
+		// Open the infile //
+		try
+		{
+			File infile = new File(fileName);
+			in = new BufferedReader(new FileReader(infile));
+
+			if(in != null && in.ready())
+			{
+				String line = "";
+				Integer lineCounter = 0;
+	    		while ((line = in.readLine()) != null)
+	    		{
+	    			lineCounter++;
+	    			String[] lineContents = line.split("\t");
+
+	    			try {
+	    				if(lineContents.length >= 3)
+	    				{
+		    				String chrom = lineContents[0];
+		    				Integer chrStart = Integer.parseInt(lineContents[1]);
+		    				Integer chrStop = Integer.parseInt(lineContents[2]);
+		    				regions.put(chrom, chrStart + "\t" + chrStop);
+	    				}
+
+	    			}
+	    			catch(Exception e)
+	    			{
+	    				System.err.println("Error parsing PED line, so skipping: " + line);
+	    			}
+	    		}
+
+	    		in.close();
+
+
+			}
+		}
+		catch(Exception e)
+		{
+	    	System.err.println("ERROR: Unable to open VEP file " + fileName + " for reading\n");
+	    	System.exit(10);
+		}
+
+
+		return(regions);
+	}
+
 
 
 	/**

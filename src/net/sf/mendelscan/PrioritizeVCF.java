@@ -16,6 +16,7 @@ import java.io.PrintStream;
 import java.text.DecimalFormat;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.lang.Math;
 
 /**
@@ -30,19 +31,52 @@ public class PrioritizeVCF {
 
 	public PrioritizeVCF(String[] args, HashMap<String, String> params)
 	{
-		String usage = "USAGE: java -jar MendelScan.jar prioritize [VCF] OPTIONS\n" +
+		String usage = "USAGE: java -jar MendelScan.jar score [VCF] OPTIONS\n" +
 		"\tOPTIONS:\n" +
 		"\t--vep-file\tVariant annotation in VEP format\n" +
+		"\t--ped-file\tPedigree file in 6-column tab-delimited format\n" +
+		"\t--expression-file\tA list of gene expression values for tissue of interest\n" +
 		"\t--output-file\tOutput file to contain human-friendly scored variants\n" +
 		"\t--output-vcf\tOutput file to contain scored variants in VCF format\n" +
-		"\t--expression-file\tA list of gene expression values for tissue of interest\n" +
-		"\t--inheritance\tPresumed model of inheritance: dominant, recessive, x-linked [dominant]\n";
+		"\t--inheritance\tPresumed model of inheritance: dominant, recessive, x-linked [dominant]\n\n" +
+		"\tSegregation Scoring: Segregation score multiplied by these values for dominant/recessive\n" +
+		"\t--seg-score-case-ref\tA case sample was called reference/wild-type (0.50/0.10)\n" +
+		"\t--seg-score-case-het\tA case sample was called heterozygous (NA/0.50)\n" +
+		"\t--seg-score-case-hom\tA case sample was called homozygous variant (0.80/NA)\n" +
+		"\t--seg-score-control-het\tA case sample was called heterozygous (0.10/NA)\n" +
+		"\t--seg-score-control-hom\tA case sample was called homozygous variant (0.01/0.10)\n\n" +
+		"\tPopulation Scoring: Population score for these classes defined by dbSNP information\n" +
+		"\t--pop-score-novel\tVariant is not present in dbSNP according to VCF (1.00)\n" +
+		"\t--pop-score-mutation\tVariant from mutation (OMIM) or locus-specific databases (0.95)\n" +
+		"\t--pop-score-known\tVariant known to dbSNP but no mutation or GMAF info (0.60)\n" +
+		"\t--pop-score-rare\tVariant in dbSNP with GMAF < 0.01 (0.20)\n" +
+		"\t--pop-score-uncommon\tVariant in dbSNP with GMAF 0.01-0.05 (0.02)\n" +
+		"\t--pop-score-common\tVariant in dbSNP with GMAF >= 0.05 (0.01)\n\n" +
+		"\tAnnotation Scoring: Annotation score based on canonical or most-damaging VEP consequence\n" +
+		"\t--anno-score-1\tScore for intergenic mutations [0.01]\n" +
+		"\t--anno-score-2\tScore for intronic mutations [0.01]\n" +
+		"\t--anno-score-3\tScore for downstream mutations [0.01]\n" +
+		"\t--anno-score-4\tScore for upstream mutations [0.01]\n" +
+		"\t--anno-score-5\tScore for UTR mutations [0.01]\n" +
+		"\t--anno-score-6\tScore for ncRNA mutations [0.01]\n" +
+		"\t--anno-score-7\tScore for miRNA mutations [0.01]\n" +
+		"\t--anno-score-8\tScore for synonymous coding mutations [0.05]\n" +
+		"\t--anno-score-9\tScore for splice region mutations [0.20]\n" +
+		"\t--anno-score-10\tScore for nonstop mutations [1.00]\n" +
+		"\t--anno-score-11\tScore for missense mutations not predicted damaging [0.80]\n" +
+		"\t--anno-score-12\tScore for missense mutations damaging by 1/3 algorithms [0.95]\n" +
+		"\t--anno-score-13\tScore for missense mutations damaging by 2/3 algorithms [0.95]\n" +
+		"\t--anno-score-14\tScore for missense mutations damaging by 3/3 algorithms [0.95]\n" +
+		"\t--anno-score-15\tScore for essential splice site mutations [1.00]\n" +
+		"\t--anno-score-16\tScore for frameshift mutations [1.00]\n" +
+		"\t--anno-score-17\tScore for nonsense mutations [1.00]\n";
 
 		String vepFile = null;
 		String pedFile = null;
 		String geneFile = null;
 		String outFile = null;
 		String outVCF = null;
+		String inheritanceModel = "dominant";
 		Integer minDepth = 20;
 
 		// Print usage if -h or --help invoked //
@@ -67,6 +101,9 @@ public class PrioritizeVCF {
 
 			if(params.containsKey("output-vcf"))
 				outVCF = params.get("output-vcf");
+
+			if(params.containsKey("inheritance"))
+				inheritanceModel = params.get("inheritance");
 		}
 
 
@@ -93,6 +130,9 @@ public class PrioritizeVCF {
 	    	{
 		    	System.err.println("Loading sample information from " + pedFile + "...");
 		    	try {
+		    		int numCases = 0;
+		    		int numControls = 0;
+		    		int numMales = 0;
 			    	pedInfo = MendelScan.loadPED(pedFile);
 
 		    		for (String sample : pedInfo.keySet())
@@ -105,11 +145,23 @@ public class PrioritizeVCF {
 		    			String status = pedLineContents[4];
 
 		    			if(sex.equals("1"))
+		    			{
 		    				maleSamples.put(sample, true);
+		    				numMales++;
+		    			}
 
 		    			if(status.equals("1"))
+		    			{
+		    				numControls++;
 		    				controlSamples.put(sample, true);
+		    			}
+		    			else if(status.equals("2"))
+		    			{
+		    				numCases++;
+		    			}
 		    		}
+
+		    		System.err.println(numMales + " males, " + numCases + " cases, " + numControls + " controls");
 		    	}
 		    	catch(Exception e)
 		    	{
@@ -117,6 +169,10 @@ public class PrioritizeVCF {
 		    		System.err.println(e.getLocalizedMessage());
 		    		e.printStackTrace(System.err);
 		    	}
+	    	}
+	    	else
+	    	{
+	    		System.err.println("WARNING: No pedigree file provided, so all samples assumed to be female affected!");
 	    	}
 
 
@@ -128,6 +184,7 @@ public class PrioritizeVCF {
 		    	System.err.println("Loading gene expression information from " + geneFile + "...");
 		    	try {
 			    	geneRank = MendelScan.loadGeneExpression(geneFile);
+			    	System.err.println("Expression rank loaded for " + geneRank.size() + " genes");
 		    	}
 		    	catch(Exception e)
 		    	{
@@ -136,6 +193,10 @@ public class PrioritizeVCF {
 		    		e.printStackTrace(System.err);
 		    	}
 	    	}
+	    	else
+	    	{
+	    		System.err.println("No gene expression file provided, so all expression scores will be 0.50");
+	    	}
 
 
 	    	HashMap<String, String> vepAnnot = null;
@@ -143,8 +204,14 @@ public class PrioritizeVCF {
 	    	{
 		    	System.err.println("Loading VEP from " + vepFile + "...");
 	    		vepAnnot = MendelScan.loadVEP(vepFile);
-	    		System.err.println("Loaded VEP for " + vepAnnot.size() + " variants");
+	    		System.err.println(vepAnnot.size() + " variants had VEP annotation");
 	    	}
+	    	else
+	    	{
+	    		System.err.println("ERROR: You must provide a VEP annotation file!");
+	    		return;
+	    	}
+
 
 
 	    	// Declare file-parsing variables //
@@ -157,10 +224,10 @@ public class PrioritizeVCF {
 	    	long numSamplesControl = 0;
 	    	long numVariants = 0;
 	    	long numVariantsAnnot = 0;
-	    	HashMap<String, Integer> stats = new HashMap();
+	    	TreeMap<String, Integer> stats = new TreeMap();
 
 			// FOrmat scores for printing //
-			DecimalFormat dfScore = new DecimalFormat("#.000");
+			DecimalFormat dfScore = new DecimalFormat("0.000");
 
 
 	    	// Save the sample names by column number //
@@ -178,6 +245,7 @@ public class PrioritizeVCF {
 	    		if(params.containsKey("output-file"))
 	    		{
 	    			outFileHandle = new PrintStream( new FileOutputStream(outFile) );
+					outFileHandle.println("CHROM\tPOSITION\tREF\tALT\tOVERALL_SCORE\tSEGREGATION_SCORE\tPOPULATION_SCORE\tANNOTATION_SCORE\tEXPRESSION_SCORE\tDBSNP_STATUS\tDBSNP_ID\tDBSNP_INFO\tCASES\tCASES_REF\tCASES_HET\tCASES_HOM\tCONTROLS\tCONTROLS_REF\tCONTROLS_HET\tCONTROLS_HOM\tHUGO_GENE\tENSEMBL_GENE\tCANONICAL\tCLASS\tTX_POS\tAA_POS\tAA_CHANGE\tPOLYPHEN\tSIFT\tCONDEL");
 	    		}
 
 	    		if(params.containsKey("output-vcf"))
@@ -195,8 +263,21 @@ public class PrioritizeVCF {
 	    			{
 	    				// Print it to output file if necessary //
 	    				if(params.containsKey("output-vcf"))
-	    					outVCFHandle.println(line);
+	    				{
+	    					// Just prior to chromosome/sample line, append MendelScan information lines
+	    					if(line.startsWith("#CHROM"))
+	    					{
+	    						outVCFHandle.println("##INFO=<ID=SCORE,Number=1,Type=Float,Description=\"Overall score calculated from product of the five MendelScan scores\">");
+	    						outVCFHandle.println("##INFO=<ID=SEGSCORE,Number=1,Type=Float,Description=\"Segregation score based on model of inheritance\">");
+	    						outVCFHandle.println("##INFO=<ID=POPSCORE,Number=1,Type=Float,Description=\"Population score based on rareness of variant\">");
+	    						outVCFHandle.println("##INFO=<ID=ANNOSCORE,Number=1,Type=Float,Description=\"Annotation score based on predicted variant consequence\">");
+	    						outVCFHandle.println("##INFO=<ID=EXPRSCORE,Number=1,Type=Float,Description=\"Expression score reflecting the relative expression of gene\">");
+	    						outVCFHandle.println("##INFO=<ID=VARGENE,Number=1,Type=String,Description=\"The HUGO gene symbol of affected gene\">");
+	    						outVCFHandle.println("##INFO=<ID=VARCLASS,Number=1,Type=String,Description=\"The predicted consequence of the variant\">");
 
+	    					}
+	    					outVCFHandle.println(line);
+	    				}
 	    				// Parse the VCF header //
 
 	    				if(line.startsWith("#CHROM"))
@@ -244,157 +325,216 @@ public class PrioritizeVCF {
     					else
     					{
 
-	    					// Parse the VCF main file //
-	    					String chrom = lineContents[0];
-	    					String position = lineContents[1];
-	    					String id = lineContents[2];
-	    					String ref = lineContents[3];
-	    					String altAlleles = lineContents[4];
-	    					String filter = lineContents[6];
-	    					String info = lineContents[7];
-	    					String format = lineContents[8];
-
-	    					if(filter.equals("PASS") || filter.equals("."))
-	    					{
-	    						numVariants++;
-
-		    					String[] alts = altAlleles.split(",");
-		    					HashMap<String, String> genotypesBySample = new HashMap();
-
-		    					for(int colCounter = 9; colCounter < lineContents.length; colCounter++)
-		    					{
-		    						// Get sample name, status, and gender //
-		    						if(samplesByColumn.containsKey(colCounter))
-		    						{
-		    							String sampleName = samplesByColumn.get(colCounter);
-		    							String sampleStatus = "case";
-		    							if(controlSamples.containsKey(sampleName))
-		    								sampleStatus = "control";
-		    							String sampleGender = "female";
-		    							if(maleSamples.containsKey(sampleName))
-		    								sampleGender = "male";
-
-		    							HashMap<String, String> sampleGenotype = MendelScan.parseGenotypeField(format, lineContents[colCounter]);
-
-		    							// Parse out sample genotype, depth, ref reads, var reads //
-		    							String sampleGT = ".";
-		    							if(sampleGenotype.containsKey("GT"))
-		    								sampleGT = sampleGenotype.get("GT");
-		    							String sampleDP = ".";
-		    							if(sampleGenotype.containsKey("DP"))
-		    								sampleDP = sampleGenotype.get("DP");
-		    							String sampleAD = ".";
-		    							if(sampleGenotype.containsKey("AD"))
-		    								sampleAD = sampleGenotype.get("AD");
-
-		    							String sampleLine = sampleStatus + "\t" + sampleGender + "\t";
-		    							sampleLine += sampleGT + "\t" + sampleDP + "\t" + sampleAD;
-		    							genotypesBySample.put(sampleName, sampleLine);
-
-		    						}
-
-		    					}
-
-		    					String segStatus = getSegregationStatus(genotypesBySample, minDepth);
-		    					double segScore = getSegregationScore(chrom, "dominant", segStatus);
-		    					String vepKey = chrom + "_" + position + "_" + ref + "/" + altAlleles.replace(",", "/");
-
-		    					System.out.println(vepKey + "\t" + segStatus + "\t" + segScore);
-
-		    					// Parse out values from info field, which should include dbSNP values //
-
-		    					HashMap<String, String> infoValues = MendelScan.parseInfoField(info);
-
-		    					// Save dbSNP ID if necessary //
-		    					if(!id.equals("."))
-		    					{
-		    						infoValues.put("RSnumber", id);
-		    					}
-
-		    					// Determine dbSNP status of variant //
-
-		    					String dbsnpStatus = getDbsnpStatus(infoValues);
-
-		    					// Assign pop score for dbSNP status //
-
-		    					double popScore = getPopulationScore(params, dbsnpStatus);
-
-		    					if(stats.containsKey(dbsnpStatus))
-		    					{
-		    						stats.put(dbsnpStatus, stats.get(dbsnpStatus) + 1);
-		    					}
-		    					else
-		    					{
-		    						stats.put(dbsnpStatus, 1);
-		    					}
+    						try {
+    	    					// Parse the VCF main file //
+    	    					String chrom = lineContents[0];
+    	    					String position = lineContents[1];
+    	    					String id = lineContents[2];
+    	    					String ref = lineContents[3];
+    	    					String altAlleles = lineContents[4];
+    	    					String qual = lineContents[5];
+    	    					String filter = lineContents[6];
+    	    					String info = lineContents[7];
+    	    					String format = lineContents[8];
 
 
-	    						if(vepAnnot.containsKey(vepKey))
-	    						{
-	    							numVariantsAnnot++;
+    	    					if(filter.equals("PASS") || filter.equals("."))
+    	    					{
+    	    						numVariants++;
 
-	    							// Get the top annotation per HUGO gene //
-	    							HashMap<String, String> topByGene = topAnnotationByGene(vepAnnot.get(vepKey));
+    		    					String[] alts = altAlleles.split(",");
+    		    					HashMap<String, String> genotypesBySample = new HashMap();
 
-	    							// Go through each HUGO gene, considering its top annotation //
+    		    					for(int colCounter = 9; colCounter < lineContents.length; colCounter++)
+    		    					{
+    		    						// Get sample name, status, and gender //
+    		    						if(samplesByColumn.containsKey(colCounter))
+    		    						{
+    		    							String sampleName = samplesByColumn.get(colCounter);
+    		    							String sampleStatus = "case";
+    		    							if(controlSamples.containsKey(sampleName))
+    		    								sampleStatus = "control";
+    		    							String sampleGender = "female";
+    		    							if(maleSamples.containsKey(sampleName))
+    		    								sampleGender = "male";
 
-	    							for (String hugoGene : topByGene.keySet())
-	    							{
-	    								try {
-		    								String topAnnot = topByGene.get(hugoGene);
-		    								String[] topAnnotContents = topAnnot.split("\t");
-		    								// Note, the topAnnotScore is the integer rank of the VEP annotation //
-		    								// The annotScore double is the variant score between 0 and 1 //
-		    								int topAnnotScore = Integer.parseInt(topAnnotContents[10]);
-		    								double annotScore = getAnnotationScore(params, topAnnotScore);
+    		    							HashMap<String, String> sampleGenotype = MendelScan.parseGenotypeField(format, lineContents[colCounter]);
 
-		    								// Determine the expression score, default 0.50 but otherwise rank of gene //
-		    								double expressionScore = 0.50;
-		    								if(geneRank.containsKey(hugoGene))
-		    									expressionScore = geneRank.get(hugoGene);
+    		    							// Parse out sample genotype, depth, ref reads, var reads //
+    		    							String sampleGT = ".";
+    		    							if(sampleGenotype.containsKey("GT"))
+    		    								sampleGT = sampleGenotype.get("GT");
+    		    							String sampleDP = ".";
+    		    							if(sampleGenotype.containsKey("DP"))
+    		    								sampleDP = sampleGenotype.get("DP");
+    		    							String sampleAD = ".";
+    		    							if(sampleGenotype.containsKey("AD"))
+    		    								sampleAD = sampleGenotype.get("AD");
 
-		    								// Calculate the overall score //
-		    								double overallScore = segScore * popScore * annotScore * expressionScore;
+    		    							String sampleLine = sampleStatus + "\t" + sampleGender + "\t";
+    		    							sampleLine += sampleGT + "\t" + sampleDP + "\t" + sampleAD;
+    		    							genotypesBySample.put(sampleName, sampleLine);
 
+    		    						}
 
-		    								// Output line //
-		    								String outLine = chrom + "\t" + position + "\t" + ref + "\t" + altAlleles + "\t";
-		    								// Output scores //
-		    								outLine += dfScore.format(overallScore) + "\t" + dfScore.format(segScore) + "\t" + dfScore.format(popScore) + "\t" + dfScore.format(annotScore) + "\t" + dfScore.format(expressionScore) + "\t";
-		    								// Output pop info //
-		    								outLine += dbsnpStatus + "\t" + id + "\t" + info + "\t";
-		    								// Output segregation info //
-		    								outLine += segStatus + "\t";
-		    								// Append Annotation //
-		    								outLine += hugoGene + "\t" + topAnnotContents[2] + "\t" + topAnnot.replace("\t", ";") + "\t";
+    		    					}
 
-		    								if(params.containsKey("output-file"))
-		    									outFileHandle.println(outLine);
-	    								}
-	    								catch(Exception e)
-	    								{
-	    									System.err.println("Warning: Exception thrown while processing " + hugoGene + " annotation for " + vepKey + " : " + e.getMessage());
-	    									e.printStackTrace(System.err);
-	    								}
+    		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth);
+    		    					double segScore = getSegregationScore(chrom, inheritanceModel, segStatus, params);
+    		    					String vepKey = chrom + "_" + position + "_" + ref + "/" + altAlleles.replace(",", "/");
 
+//    		    					System.out.println(vepKey + "\t" + segStatus + "\t" + segScore);
 
-	    							} // End foreach hugoGene in topByGene loop
+    		    					// Parse out values from info field, which should include dbSNP values //
 
+    		    					HashMap<String, String> infoValues = MendelScan.parseInfoField(info);
 
-	    						}
-	    						else
-	    						{
-	    							System.err.println("Warning: No VEP info for " + vepKey);
-	    						}
+    		    					// Save dbSNP ID if necessary //
+    		    					if(!id.equals("."))
+    		    					{
+    		    						infoValues.put("RSnumber", id);
+    		    					}
+
+    		    					// Determine dbSNP status of variant //
+
+    		    					String dbsnpStatus = MendelScan.getDbsnpStatus(infoValues);
+
+    		    					// Assign pop score for dbSNP status //
+
+    		    					double popScore = getPopulationScore(params, dbsnpStatus);
 
 
-		    					// Go through VCF one alternative allele at a time //
+    	    						if(vepAnnot.containsKey(vepKey))
+    	    						{
+    	    							numVariantsAnnot++;
 
-		    					for(int altCounter = 0; altCounter < alts.length; altCounter++)
-		    					{
-		    						String alt = alts[altCounter];
-		    					}
-	    					}
+    	    							// Get the top annotation per HUGO gene //
+    	    							HashMap<String, String> topByGene = topAnnotationByGene(vepAnnot.get(vepKey));
+
+    	    							// Go through each HUGO gene, considering its top annotation //
+
+    	    							for (String hugoGene : topByGene.keySet())
+    	    							{
+    	    								try {
+    		    								String topAnnot = topByGene.get(hugoGene);
+    		    								String[] topAnnotContents = topAnnot.split("\t");
+    		    								// Note, the topAnnotScore is the integer rank of the VEP annotation //
+    		    								// The annotScore double is the variant score between 0 and 1 //
+    		    								int topAnnotScore = Integer.parseInt(topAnnotContents[10]);
+    		    								double annotScore = getAnnotationScore(params, topAnnotScore);
+
+    		    								// Determine the expression score, default 0.50 but otherwise rank of gene //
+    		    								double expressionScore = 0.50;
+    		    								if(geneRank.containsKey(hugoGene))
+    		    									expressionScore = geneRank.get(hugoGene);
+
+    		    								// Calculate the overall score //
+    		    								double overallScore = segScore * popScore * annotScore * expressionScore;
+
+    		    								// Output line //
+    		    								String outLine = chrom + "\t" + position + "\t" + ref + "\t" + altAlleles + "\t";
+    		    								// Output scores //
+    		    								outLine += dfScore.format(overallScore) + "\t" + dfScore.format(segScore) + "\t" + dfScore.format(popScore) + "\t" + dfScore.format(annotScore) + "\t" + dfScore.format(expressionScore) + "\t";
+    		    								// Output pop info //
+    		    								outLine += dbsnpStatus + "\t" + id + "\t" + info + "\t";
+    		    								// Output segregation info //
+    		    								outLine += segStatus + "\t";
+    		    								// Append Annotation //
+
+    		    								String ensGene = topAnnotContents[0];
+    		    								String varClass = topAnnotContents[2];
+    		    								String canonical = topAnnotContents[3];
+    		    								String polyphen = topAnnotContents[4];
+    		    								String sift = topAnnotContents[5];
+    		    								String condel = topAnnotContents[6];
+    		    								String txPos = topAnnotContents[7];
+    		    								String aaPos = topAnnotContents[8];
+    		    								String aaChange = topAnnotContents[9];
+
+    		    								if(canonical.equals("CANONICAL"))
+    		    									canonical = "YES";
+
+    		    								outLine += hugoGene + "\t" + ensGene + "\t" + canonical + "\t";
+    		    								outLine += varClass + "\t" + txPos + "\t" + aaPos + "\t" + aaChange + "\t";
+    		    								outLine += polyphen + "\t" + sift + "\t" + condel;
+
+    		    		    					if(stats.containsKey("variants_" + dbsnpStatus))
+    		    		    					{
+    		    		    						stats.put("variants_" + dbsnpStatus, stats.get("variants_" + dbsnpStatus) + 1);
+    		    		    					}
+    		    		    					else
+    		    		    					{
+    		    		    						stats.put("variants_" + dbsnpStatus, 1);
+    		    		    					}
+
+    		    								if(params.containsKey("output-file"))
+    		    									outFileHandle.println(outLine);
+
+    		    								// Build new VCF line //
+
+    		    								// Build new info field //
+    		    								String newInfo = info;
+    		    								if(newInfo.length() > 0)
+    		    								{
+    		    									if(newInfo.equals("."))
+    		    									{
+    		    										newInfo = "";
+    		    									}
+    		    									else
+    		    									{
+    		    										newInfo += ";";
+    		    									}
+    		    								}
+    		    								newInfo += "SCORE=" + dfScore.format(overallScore) + ";";
+    		    								newInfo += "SEGSCORE=" + dfScore.format(segScore) + ";";
+    		    								newInfo += "POPSCORE=" + dfScore.format(popScore) + ";";
+    		    								newInfo += "ANNOSCORE=" + dfScore.format(annotScore) + ";";
+    		    								newInfo += "EXPRSCORE=" + dfScore.format(expressionScore) + ";";
+    		    								newInfo += "VARGENE=" + hugoGene + ";VARCLASS=" + varClass;
+
+    		    								String newVCFline = chrom + "\t" + position + "\t" + id + "\t" + ref + "\t" + altAlleles + "\t";
+    		    		    					newVCFline += qual + "\t" + filter + "\t" + newInfo + "\t" + format;
+    		    		    					for(int colCounter = 9; colCounter < lineContents.length; colCounter++)
+    		    		    					{
+    		    		    						newVCFline += "\t" + lineContents[colCounter];
+    		    		    					}
+
+    		    		    					if(params.containsKey("output-vcf"))
+    		    		    						outVCFHandle.println(newVCFline);
+    	    								}
+    	    								catch(Exception e)
+    	    								{
+    	    									System.err.println("Warning: Exception thrown while processing " + hugoGene + " annotation for " + vepKey + " : " + e.getMessage());
+    	    									e.printStackTrace(System.err);
+    	    								}
+
+
+    	    							} // End foreach hugoGene in topByGene loop
+
+
+    	    						}
+    	    						else
+    	    						{
+    	    							System.err.println("Warning: No VEP info for " + vepKey);
+    	    						}
+
+
+    		    					// Go through VCF one alternative allele at a time //
+
+    		    					for(int altCounter = 0; altCounter < alts.length; altCounter++)
+    		    					{
+    		    						String alt = alts[altCounter];
+    		    					}
+    	    					}
+
+    						}
+    						catch(Exception e)
+    						{
+    							System.err.println("Parsing exception thrown for line: " + line);
+    							System.err.println(e.getMessage());
+    						}
+
+
 
     					}
 	    			}
@@ -418,7 +558,7 @@ public class PrioritizeVCF {
 
 	    	for (String statKey : stats.keySet())
 	    	{
-	    		System.err.println(stats.get(statKey) + "\thad VEP code " + statKey);
+	    		System.err.println(stats.get(statKey) + "\t" + statKey);
 	    	}
 
 	    }
@@ -433,147 +573,7 @@ public class PrioritizeVCF {
 
 
 
-	/**
-	 * Returns the population score based on dbSNP information and user-specified thresholds
-	 *
-	 * @param	info	HashMap of dbSNP information from ID and INFO columns
-	 * @return			String with one of several possible dbSNP statuses
-	 */
-	static String getSegregationStatus(HashMap<String, String> genotypes, Integer minDepth)
-	{
-		String segStatus = "unknown";
 
-		int casesCalled = 0;
-		int casesRef = 0;
-		int casesHet = 0;
-		int casesHom = 0;
-		int casesMissing = 0;
-		int controlsCalled = 0;
-		int controlsRef = 0;
-		int controlsHet = 0;
-		int controlsHom = 0;
-		int controlsMissing = 0;
-
-		try {
-			for (String sample : genotypes.keySet())
-			{
-				try {
-					String[] sampleContents = genotypes.get(sample).split("\t");
-					String status = sampleContents[0];
-					String gender = sampleContents[1];
-					String gt = sampleContents[2];
-
-					if(!gt.equals(".") && !gt.equals("./."))
-					{
-						// Obtain sequence depth and allele depth //
-						Integer depth = 0;
-						if(sampleContents[3].length() > 0 && !sampleContents[3].equals("."))
-						{
-							depth = Integer.parseInt(sampleContents[3]);
-						}
-
-						// Check to see if this variant matches the expectation //
-						if(status.equals("case"))
-						{
-							casesCalled++;
-							// CASE //
-							if(MendelScan.isHeterozygous(gt))
-							{
-								casesHet++;
-							}
-							else
-							{
-								if(MendelScan.isHomozygous(gt))
-								{
-									casesHom++;
-								}
-								else if(MendelScan.isReference(gt))
-								{
-									// Determine if we have sufficient depth and VAF is less than 5% //
-									if(depth >= minDepth)
-									{
-										if(sampleContents[4].length() > 0 && !sampleContents[4].equals("."))
-										{
-											Integer varDepth = 0;
-											// Get all alternate allele depths //
-											String[] readCounts = sampleContents[4].split(",");
-											for(int colCounter = 1; colCounter < readCounts.length; colCounter++)
-											{
-												int thisDepth = Integer.parseInt(readCounts[colCounter]);
-												varDepth += thisDepth;
-											}
-
-											// Determine the variant allele frequency //
-
-											if(depth > 0)
-											{
-												double varFreq = (double) varDepth / (double) depth;
-
-												// Only penalize if there's very little evidence for variant //
-
-												if(varFreq < 0.05)
-												{
-													casesRef++;
-												}
-											}
-
-										}
-										else
-										{
-											casesRef++;
-										}
-
-
-									}
-
-
-
-								}
-
-
-							}
-						}
-						else
-						{
-							// CONTROL //
-							controlsCalled++;
-							if(MendelScan.isHeterozygous(gt))
-							{
-								controlsHet++;
-							}
-							else if(MendelScan.isHomozygous(gt))
-							{
-								controlsHom++;
-							}
-							else if(MendelScan.isReference(gt))
-							{
-								if(depth >= minDepth)
-									controlsRef++;
-							}
-
-						}
-
-					}
-				}
-				catch(Exception e)
-				{
-					System.err.println("Exception thrown while trying to parse data for " + sample + ": " + genotypes.get(sample));
-				}
-
-			}
-
-		}
-		catch(Exception e)
-		{
-			System.err.println("Exception thrown while calculating segregation score: " + e.getMessage());
-		}
-
-		segStatus = casesCalled + "\t" + casesRef + "\t" + casesHet + "\t" + casesHom;
-		segStatus += "\t";
-		segStatus += controlsCalled + "\t" + controlsRef + "\t" + controlsHet + "\t" + controlsHom;
-
-		return(segStatus);
-	}
 
 
 	/**
@@ -583,9 +583,58 @@ public class PrioritizeVCF {
 	 * @param	status	Type of file ("positions" or "regions")
 	 * @return			Double of resulting population score for this variant
 	 */
-	static double getSegregationScore(String chrom, String inheritanceMode, String segStatus)
+	static double getSegregationScore(String chrom, String inheritanceMode, String segStatus, HashMap<String, String> params)
 	{
 		double segScore = 0.000;
+
+		// Set default scores for segregation patterns //
+
+		double scoreCaseRef = 1.00;
+		double scoreCaseHet = 1.00;
+		double scoreCaseHom = 1.00;
+		double scoreControlHet = 1.00;
+		double scoreControlHom = 1.00;
+
+		if(inheritanceMode.equals("recessive"))
+		{
+			// Recessive inheritance assumptions //
+			scoreCaseRef = 0.50;
+			scoreCaseHom = 0.80;
+			scoreControlHet = 0.10;
+			scoreControlHom = 0.01;
+		}
+		else
+		{
+			// Dominant inheritance assumptions //
+			scoreCaseRef = 0.10;
+			scoreCaseHet = 0.50;
+			scoreControlHet = 1.00;	// No penalty as control could be carrier
+			scoreControlHom = 0.50;
+		}
+
+		// Try to get the user's parameter changes //
+
+		try {
+			if(params.containsKey("seg-score-case-ref"))
+				scoreCaseRef = Double.parseDouble(params.get("seg-score-case-ref"));
+
+			if(params.containsKey("seg-score-case-het"))
+				scoreCaseHet = Double.parseDouble(params.get("seg-score-case-het"));
+
+			if(params.containsKey("seg-score-case-hom"))
+				scoreCaseHom = Double.parseDouble(params.get("seg-score-case-hom"));
+
+			if(params.containsKey("seg-score-control-het"))
+				scoreControlHet = Double.parseDouble(params.get("seg-score-control-het"));
+
+			if(params.containsKey("seg-score-control-hom"))
+				scoreControlHom = Double.parseDouble(params.get("seg-score-control-hom"));
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while parsing segregation score parameters: " + e.getMessage());
+		}
 
 		// We expect all affected to be heterozygous, all controls to be reference
 		String[] segContents = segStatus.split("\t");
@@ -611,7 +660,7 @@ public class PrioritizeVCF {
 				{
 					for(int caseCounter = 0; caseCounter < casesRef; caseCounter++)
 					{
-						segScore = segScore * 0.50;
+						segScore = segScore * scoreCaseRef;
 					}
 				}
 
@@ -621,15 +670,23 @@ public class PrioritizeVCF {
 				{
 					for(int caseCounter = 0; caseCounter < casesHom; caseCounter++)
 					{
-						segScore = segScore * 0.80;
+						segScore = segScore * scoreCaseHom;
 					}
 				}
 
-				if(controlsVariant > 0)
+				if(controlsHet > 0)
 				{
-					for(int controlCounter = 0; controlCounter < controlsVariant; controlCounter++)
+					for(int controlCounter = 0; controlCounter < controlsHet; controlCounter++)
 					{
-						segScore = segScore * 0.10;
+						segScore = segScore * scoreControlHet;
+					}
+				}
+
+				if(controlsHom > 0)
+				{
+					for(int controlCounter = 0; controlCounter < controlsHom; controlCounter++)
+					{
+						segScore = segScore * scoreControlHom;
 					}
 				}
 
@@ -643,7 +700,7 @@ public class PrioritizeVCF {
 				{
 					for(int caseCounter = 0; caseCounter < casesRef; caseCounter++)
 					{
-						segScore = segScore * 0.10;
+						segScore = segScore * scoreCaseRef;
 					}
 				}
 
@@ -654,7 +711,7 @@ public class PrioritizeVCF {
 					// Assume that cases called het are mis-called //
 					for(int caseCounter = 0; caseCounter < casesHet; caseCounter++)
 					{
-						segScore = segScore * 0.50;
+						segScore = segScore * scoreCaseHet;
 					}
 				}
 
@@ -664,7 +721,7 @@ public class PrioritizeVCF {
 				{
 					for(int controlCounter = 0; controlCounter < controlsHom; controlCounter++)
 					{
-						segScore = segScore * 0.50;
+						segScore = segScore * scoreControlHom;
 					}
 				}
 
@@ -743,29 +800,104 @@ public class PrioritizeVCF {
 	 */
 	static double getAnnotationScore(HashMap<String, String> params, int vepScore)
 	{
-		double annotScore = 0.00;
+		double annotScore = 0.01;
+
+		double annoScore1 = 0.01;	// Intergenic
+		double annoScore2 = 0.01;	// Intronic
+		double annoScore3 = 0.01;	// Downstream
+		double annoScore4 = 0.01;	// Upstream
+		double annoScore5 = 0.01;	// UTR
+		double annoScore6 = 0.01;	// Noncoding gene
+		double annoScore7 = 0.01;	// Mature miRNA
+		double annoScore8 = 0.05;	// Synonymous or coding-unknown or partial-codon
+		double annoScore9 = 0.20;	// Splice site
+		double annoScore10 = 1.00;	// Nonstop
+		double annoScore11 = 0.80;	// Missense + 0 damaging
+		double annoScore12 = 0.95;	// Missense + 1 damaging
+		double annoScore13 = 0.95;	// Missense + 2 damaging
+		double annoScore14 = 0.95;	// Missense + 3 damaging
+		double annoScore15 = 1.00;	// Essential splice site
+		double annoScore16 = 1.00;	// Frameshift
+		double annoScore17 = 1.00;	// Nonsense
 
 		try {
-			if(vepScore >= 15)	// Nonsense, frameshift, splice site //
-			{
-				annotScore = 1.00;
-			}
-			else if(vepScore == 14) // Missense called damaging by 3/3 algorithms
-			{
-				annotScore = 0.95;
-			}
-			else if(vepScore == 14) // Missense called damaging by 2/3 algorithms
-			{
-				annotScore = 0.95;
-			}
-			else if(vepScore == 14) // Missense called damaging by 1/3 algorithms
-			{
-				annotScore = 0.95;
-			}
-			else if(vepScore == 14) // Missense called damaging by 0/3 algorithms
-			{
-				annotScore = 0.80;
-			}
+			if(params.containsKey("anno-score-1"))
+				annoScore1 = Double.parseDouble(params.get("anno-score-1"));
+			if(params.containsKey("anno-score-2"))
+				annoScore2 = Double.parseDouble(params.get("anno-score-2"));
+			if(params.containsKey("anno-score-3"))
+				annoScore3 = Double.parseDouble(params.get("anno-score-3"));
+			if(params.containsKey("anno-score-4"))
+				annoScore4 = Double.parseDouble(params.get("anno-score-4"));
+			if(params.containsKey("anno-score-5"))
+				annoScore5 = Double.parseDouble(params.get("anno-score-5"));
+			if(params.containsKey("anno-score-6"))
+				annoScore6 = Double.parseDouble(params.get("anno-score-6"));
+			if(params.containsKey("anno-score-7"))
+				annoScore7 = Double.parseDouble(params.get("anno-score-7"));
+			if(params.containsKey("anno-score-8"))
+				annoScore8 = Double.parseDouble(params.get("anno-score-8"));
+			if(params.containsKey("anno-score-9"))
+				annoScore9 = Double.parseDouble(params.get("anno-score-9"));
+			if(params.containsKey("anno-score-10"))
+				annoScore10 = Double.parseDouble(params.get("anno-score-10"));
+			if(params.containsKey("anno-score-11"))
+				annoScore11 = Double.parseDouble(params.get("anno-score-11"));
+			if(params.containsKey("anno-score-12"))
+				annoScore12 = Double.parseDouble(params.get("anno-score-12"));
+			if(params.containsKey("anno-score-13"))
+				annoScore13 = Double.parseDouble(params.get("anno-score-13"));
+			if(params.containsKey("anno-score-14"))
+				annoScore14 = Double.parseDouble(params.get("anno-score-14"));
+			if(params.containsKey("anno-score-15"))
+				annoScore15 = Double.parseDouble(params.get("anno-score-15"));
+			if(params.containsKey("anno-score-16"))
+				annoScore16 = Double.parseDouble(params.get("anno-score-16"));
+			if(params.containsKey("anno-score-17"))
+				annoScore17 = Double.parseDouble(params.get("anno-score-17"));
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while parsing annotation score parameters: " + e.getMessage());
+		}
+
+		try {
+			if(vepScore == 1)
+				annotScore = annoScore1;
+			else if(vepScore == 2)
+				annotScore = annoScore2;
+			else if(vepScore == 3)
+				annotScore = annoScore3;
+			else if(vepScore == 4)
+				annotScore = annoScore4;
+			else if(vepScore == 5)
+				annotScore = annoScore5;
+			else if(vepScore == 6)
+				annotScore = annoScore6;
+			else if(vepScore == 7)
+				annotScore = annoScore7;
+			else if(vepScore == 8)
+				annotScore = annoScore8;
+			else if(vepScore == 9)
+				annotScore = annoScore9;
+			else if(vepScore == 10)
+				annotScore = annoScore10;
+			else if(vepScore == 11)
+				annotScore = annoScore11;
+			else if(vepScore == 12)
+				annotScore = annoScore12;
+			else if(vepScore == 13)
+				annotScore = annoScore13;
+			else if(vepScore == 14)
+				annotScore = annoScore14;
+			else if(vepScore == 15)
+				annotScore = annoScore15;
+			else if(vepScore == 16)
+				annotScore = annoScore16;
+			else if(vepScore == 17)
+				annotScore = annoScore17;
+
 		}
 		catch(Exception e)
 		{
@@ -775,68 +907,6 @@ public class PrioritizeVCF {
 		return(annotScore);
 	}
 
-	/**
-	 * Returns the population score based on dbSNP information and user-specified thresholds
-	 *
-	 * @param	info	HashMap of dbSNP information from ID and INFO columns
-	 * @return			String with one of several possible dbSNP statuses
-	 */
-	static String getDbsnpStatus(HashMap<String, String> info)
-	{
-		String status = "unknown";
-
-		try {
-			if(info.containsKey("G5") || info.containsKey("G5A"))
-			{
-				status = "common";
-			}
-			else if(info.containsKey("GMAF"))
-			{
-				Double gmaf = Double.parseDouble(info.get("GMAF"));
-				if(gmaf >= 0.05)
-				{
-					status = "common";
-				}
-				else if(gmaf >= 0.01)
-				{
-					status = "uncommon";
-				}
-				else
-				{
-					status = "rare";
-				}
-			}
-			else if(info.containsKey("KGPilot123"))
-			{
-				status = "rare";
-			}
-			else if(info.containsKey("RSnumber"))
-			{
-				status = "known";
-			}
-			else
-			{
-				status = "novel";
-			}
-
-			// Also check for dbSNP flags of mutations. These override novel/known/rare variant status //
-
-			if(info.containsKey("MUT") || info.containsKey("CLN") || info.containsKey("PM"))
-			{
-				if(status.equals("novel") || status.equals("known") || status.equals("rare"))
-				{
-					status = "mutation";
-				}
-			}
-
-		}
-		catch(Exception e)
-		{
-			System.err.println("Warning: Exception thrown while determining dbSNP status: " + e.getMessage());
-		}
-
-		return(status);
-	}
 
 	/**
 	 * Returns the population score based on dbSNP information and user-specified thresholds
@@ -849,30 +919,59 @@ public class PrioritizeVCF {
 	{
 		double popScore = 0.00;
 
+		// Establish default parameters //
+		double scoreNovel = 1.00;
+		double scoreMutation = 0.95;
+		double scoreKnown = 0.60;
+		double scoreRare = 0.20;
+		double scoreUncommon = 0.02;
+		double scoreCommon = 0.01;
+
+		try {
+			if(params.containsKey("pop-score-novel"))
+				scoreNovel = Double.parseDouble(params.get("pop-score-novel"));
+			if(params.containsKey("pop-score-mutation"))
+				scoreMutation = Double.parseDouble(params.get("pop-score-mutation"));
+			if(params.containsKey("pop-score-known"))
+				scoreKnown = Double.parseDouble(params.get("pop-score-known"));
+			if(params.containsKey("pop-score-rare"))
+				scoreRare = Double.parseDouble(params.get("pop-score-rare"));
+			if(params.containsKey("pop-score-uncommon"))
+				scoreUncommon = Double.parseDouble(params.get("pop-score-uncommon"));
+			if(params.containsKey("pop-score-common"))
+				scoreCommon = Double.parseDouble(params.get("pop-score-common"));
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while parsing population score parameters: " + e.getMessage());
+		}
+
+
 		try {
 			if(status.equals("novel"))
 			{
-				popScore = 1.00;
+				popScore = scoreNovel;
 			}
 			else if(status.equals("mutation"))
 			{
-				popScore = 0.95;
+				popScore = scoreMutation;
 			}
 			else if(status.equals("known"))
 			{
-				popScore = 0.60;
+				popScore = scoreKnown;
 			}
 			else if(status.equals("rare"))
 			{
-				popScore = 0.20;
+				popScore = scoreRare;
 			}
 			else if(status.equals("uncommon"))
 			{
-				popScore = 0.02;
+				popScore = scoreUncommon;
 			}
 			else if(status.equals("common"))
 			{
-				popScore = 0.01;
+				popScore = scoreCommon;
 			}
 		}
 		catch(Exception e)
