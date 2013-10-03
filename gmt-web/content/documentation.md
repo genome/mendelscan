@@ -19,7 +19,7 @@ java -jar MendelScan.jar sibd  &#35; Perform SIBD analysis
 For detailed usage information, enter the subcommand followed by -h or --help, e.g.:
 
 <pre class="terminal">
-	java -jar MendelScan.jar score -h
+java -jar MendelScan.jar score -h
 </pre>
 
 For those familiar with Java, the auto-generated Javadoc documentation may be useful as well.
