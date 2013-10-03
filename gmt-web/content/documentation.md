@@ -1,19 +1,26 @@
 ## Documentation ##
 
 MendelScan is a command-line program with multiple subcommands (e.g. score, rhro, and sibd). Each subcommand has a unique set of inputs and outputs. For the list of available subcommands, enter:
-	java -jar MendelScan.jar --help
+
+<pre class="terminal">
+java -jar MendelScan.jar --help
+</pre>
 
 ## Available Subcommands ##
 
 These subcommands are currently supported:
 
-	java -jar MendelScan.jar score 		Prioritize a VCF 
-	java -jar MendelScan.jar rhro		Perform RHRO analysis
-	java -jar MendelScan.jar sibd		Perform SIBD analysis
-	
+<pre class="terminal">
+java -jar MendelScan.jar score # Prioritize a VCF
+java -jar MendelScan.jar rhro  # Perform RHRO analysis
+java -jar MendelScan.jar sibd  # Perform SIBD analysis
+</pr>
+
 For detailed usage information, enter the subcommand followed by -h or --help, e.g.:
 
+<pre class="terminal">
 	java -jar MendelScan.jar score -h
+</pre>
 
 For those familiar with Java, the auto-generated Javadoc documentation may be useful as well.
 
