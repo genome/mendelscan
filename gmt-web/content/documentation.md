@@ -11,9 +11,9 @@ java -jar MendelScan.jar --help
 These subcommands are currently supported:
 
 <pre class="terminal">
-java -jar MendelScan.jar score # Prioritize a VCF
-java -jar MendelScan.jar rhro  # Perform RHRO analysis
-java -jar MendelScan.jar sibd  # Perform SIBD analysis
+java -jar MendelScan.jar score &#35; Prioritize a VCF
+java -jar MendelScan.jar rhro  &#35; Perform RHRO analysis
+java -jar MendelScan.jar sibd  &#35; Perform SIBD analysis
 </pr>
 
 For detailed usage information, enter the subcommand followed by -h or --help, e.g.:
