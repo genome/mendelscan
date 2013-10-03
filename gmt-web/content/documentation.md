@@ -14,7 +14,7 @@ These subcommands are currently supported:
 java -jar MendelScan.jar score &#35; Prioritize a VCF
 java -jar MendelScan.jar rhro  &#35; Perform RHRO analysis
 java -jar MendelScan.jar sibd  &#35; Perform SIBD analysis
-</pr>
+</pre>
 
 For detailed usage information, enter the subcommand followed by -h or --help, e.g.:
 
