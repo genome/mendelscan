@@ -30,7 +30,7 @@ For those familiar with Java, the auto-generated [Javadoc][] documentation may b
 
 ### score: Variant Scoring and Prioritization ###
 
-The "score" command of MendelScan takes 4 inputs:
+The `score` command of MendelScan takes 4 inputs:
 
 1. A pedigree file in [PED format][PED] that indicates the name, gender, and affectation status of the samples in the VCF. Samples in the VCF but not in the PED file will be treated as affected females.
 2. A VCF file that has been annotated with dbSNP information (a task that can be completed with the current dbSNP VCF file and the [joinx][] utility).
@@ -43,7 +43,7 @@ The output file contains each variant along with the overall and individual scor
 
 ### rhro: Rare Heterozygote Rule Out ###
 
-The "rhro" subcommand of MendelScan takes three inputs:
+The `rhro` subcommand of MendelScan takes three inputs:
 
 1. A pedigree file in [PED format][PED] that indicates the name, gender, and affectation status of the samples in the VCF. Samples in the VCF but not in the PED file will be treated as affected females.
 2. A VCF file that has been annotated with dbSNP information (a task that can be completed with the current dbSNP VCF file and the [joinx][] utility).
@@ -55,7 +55,7 @@ There are two output files from this command. One contains all informative varia
 
 ### sibd: Shared Identity-by-Descent ###
 
-The "sibd" subcommand of MendelScan uses BEAGLE FastIBD results to identify regions of maximum identity-by-descent (IBD) among affected pairs. It requires the user to run BEAGLE FastIBD on the sequencing data (which requires conversion of the VCF to BEAGLE format and a "markers" file). This should be done on a per-chromosome basis. Then, the following files should be provided as inputs to MendelScan for each chromosome:
+The `sibd` subcommand of MendelScan uses BEAGLE FastIBD results to identify regions of maximum identity-by-descent (IBD) among affected pairs. It requires the user to run BEAGLE FastIBD on the sequencing data (which requires conversion of the VCF to BEAGLE format and a "markers" file). This should be done on a per-chromosome basis. Then, the following files should be provided as inputs to MendelScan for each chromosome:
 
 1. A pedigree file in [PED format][PED] that indicates the name, gender, and affectation status of the samples in the VCF. Samples in the VCF but not in the PED file will be treated as affected females.
 2. The BEAGLE markers file for the chromosome at hand, which typically includes four columns: physical position (chrom:position), map position (morgans), allele1, and allele2.
