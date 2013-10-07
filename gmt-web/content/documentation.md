@@ -22,7 +22,9 @@ For detailed usage information, enter the subcommand followed by -h or --help, e
 java -jar MendelScan.jar score -h
 </pre>
 
-For those familiar with Java, the auto-generated Javadoc documentation may be useful as well.
+For those familiar with Java, the auto-generated [Javadoc][] documentation may be useful as well.
+
+[Javadoc]: http://genome.github.io/mendelscan/
 
 ## How to Cite ##
 
