@@ -1,4 +1,5 @@
 ## Documentation ##
+----
 
 MendelScan is a command-line program with multiple subcommands (e.g. score, rhro, and sibd). Each subcommand has a unique set of inputs and outputs. For the list of available subcommands, enter:
 
@@ -7,6 +8,7 @@ java -jar MendelScan.jar --help
 </pre>
 
 ## Available Subcommands ##
+----
 
 These subcommands are currently supported:
 
@@ -63,5 +65,6 @@ MendelScan breaks the chromosome into windows of a user-specified resolution (de
 
 
 ## How to Cite ##
+----
 
 A manuscript describing MendelScan is currently under review. In the interim, please cite MendelScan by noting the version and citing http://gmt.genome.wustl.edu/mendelscan.
