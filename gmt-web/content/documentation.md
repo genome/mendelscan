@@ -28,7 +28,7 @@ For those familiar with Java, the auto-generated [Javadoc][] documentation may b
 
 [Javadoc]: http://genome.github.io/mendelscan/
 
-### Variant Scoring and Prioritization ###
+### score: Variant Scoring and Prioritization ###
 
 The "score" command of MendelScan takes 4 inputs:
 
@@ -41,7 +41,7 @@ MendelScan calculates four individual scores (segregation, population, annotatio
 
 The output file contains each variant along with the overall and individual scores, as well as annotation, population, expression, and segregation data that were used to compute them. A VCF output option is also available; it places an similar but abbreviated information in the INFO field.
 
-### Rare Heterozygote Rule Out (RHRO) ###
+### rhro: Rare Heterozygote Rule Out ###
 
 The "rhro" subcommand of MendelScan takes three inputs:
 
@@ -53,7 +53,7 @@ The RHRO method identifies candidate regions consistent with autosomal dominant 
 
 There are two output files from this command. One contains all informative variants (rare heterozygotes shared by affecteds, or variant positions with homozygous differences between affected pairs). The second output is a window of RHRO regions that are consistent with autosomal dominant inheritance given the inputs and assumptions described here.
 
-### Shared Identity-by-Descent (SIBD) ###
+### sibd: Shared Identity-by-Descent ###
 
 The "sibd" subcommand of MendelScan uses BEAGLE FastIBD results to identify regions of maximum identity-by-descent (IBD) among affected pairs. It requires the user to run BEAGLE FastIBD on the sequencing data (which requires conversion of the VCF to BEAGLE format and a "markers" file). This should be done on a per-chromosome basis. Then, the following files should be provided as inputs to MendelScan for each chromosome:
 
