@@ -62,9 +62,3 @@ The "sibd" subcommand of MendelScan uses BEAGLE FastIBD results to identify regi
 3. The BEAGLE FastIBD output file (*.fibd) for the chromosome in uncompressed format. It should have five columns: sample1, sample2, index1, index2, and score. The index fields correspond to the markers file; MendelScan will convert these to genomic coordinates and print them to the output file.
 
 MendelScan breaks the chromosome into windows of a user-specified resolution (default: 100,000 bp) and, for each window, determines the number of affected pairs that shared an IBD segment in that window. Typically, windows in which >90% of possible affected pairs were IBD suggests a candidate haplotype. All windows are output to a second output file (if specified) or STDOUT.
-
-
-## How to Cite ##
-----
-
-A manuscript describing MendelScan is currently under review. In the interim, please cite MendelScan by noting the version and citing http://gmt.genome.wustl.edu/mendelscan.
