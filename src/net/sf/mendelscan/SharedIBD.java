@@ -1,3 +1,11 @@
+/**
+ * @(#)SharedIBD.java
+ *
+ * Copyright (c) 2013 Daniel C. Koboldt and Washington University in St. Louis
+ *
+ * COPYRIGHT
+ */
+
 package net.sf.mendelscan;
 
 import java.io.BufferedReader;
@@ -7,6 +15,15 @@ import java.io.FileReader;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.TreeMap;
+
+/**
+ * A class for performing shared identity-by-descent analysis to map dominant disease genes
+ *
+ * @version	1.1
+ *
+ * @author Daniel C. Koboldt <dkoboldt@genome.wustl.edu>
+ *
+ */
 
 public class SharedIBD {
 	public SharedIBD(String[] args, HashMap<String, String> params)
@@ -212,11 +229,13 @@ public class SharedIBD {
     		if(params.containsKey("output-file"))
     		{
     			outFileHandle = new PrintStream( new FileOutputStream(outFile) );
+    			outFileHandle.println("chrom\tchr_start\tchr_stop\tsample1\tsample2\tindex_start\tindex_stop\tp_value\tnum_markers");
     		}
 
     		if(params.containsKey("output-windows"))
     		{
     			outWindowsHandle = new PrintStream( new FileOutputStream(outWindows) );
+    			outWindowsHandle.println("chrom\tchr_start\tchr_stop\ttotal_pairs\tpairs_ibd");
     		}
 
     		// Centromere parameters //

@@ -15,9 +15,9 @@ import java.util.*;
 import java.text.*;
 
 /**
- * A set of tools for variant detection in next-generation sequence data.
+ * A set of tools for analyzing variants from family-based sequencing of inherited disease
  *
- * @version	2.3
+ * @version	1.1
  *
  * @author Daniel C. Koboldt <dkoboldt@genome.wustl.edu>
  *

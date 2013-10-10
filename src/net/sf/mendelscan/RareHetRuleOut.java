@@ -1,3 +1,11 @@
+/**
+ * @(#)RareHetRuleOut.java
+ *
+ * Copyright (c) 2013 Daniel C. Koboldt and Washington University in St. Louis
+ *
+ * COPYRIGHT
+ */
+
 package net.sf.mendelscan;
 
 import java.io.BufferedReader;
@@ -6,6 +14,15 @@ import java.io.PrintStream;
 import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.TreeMap;
+
+/**
+ * A class for performing rare heterozygote rule out analysis to map dominant disease genes
+ *
+ * @version	1.1
+ *
+ * @author Daniel C. Koboldt <dkoboldt@genome.wustl.edu>
+ *
+ */
 
 public class RareHetRuleOut {
 	public RareHetRuleOut(String[] args, HashMap<String, String> params)

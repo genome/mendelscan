@@ -1,7 +1,7 @@
 /**
- * @(#)CallMpileup.java
+ * @(#)PrioritizeVCF.java
  *
- * Copyright (c) 2009-2010 Daniel C. Koboldt and Washington University in St. Louis
+ * Copyright (c) 2013 Daniel C. Koboldt and Washington University in St. Louis
  *
  * COPYRIGHT
  */
