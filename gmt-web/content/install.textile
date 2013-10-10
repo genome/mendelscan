@@ -1,14 +1,20 @@
 {% assign ubuntu_versions = "Ubuntu 10.04" %}
 {% include install/download.html %}
 
-<h2>Java JAR Download</h2>
+<h2>Other Platforms &amp; Source Code</h2>
 <hr />
+
+<h3>Java JAR Download</h3>
 
 <p>Java archives (JAR) are available on the <a href="https://github.com/genome/mendelscan/releases">MendelScan GitHub Releases</a> page.  Once you download the JAR you can run MendelScan on the commandline using Java:</p>
 
 <pre class="terminal">java -jar MendelScan.jar</pre>
 
-{% include install/github.html %}
+<h3>Source Code</h3>
+
+<p>The full source code and build instructions are available from the <a href="{{ page.github_url }}">GitHub project page</a>.</p>
+
+<p>You will also find answers to some frequently asked installation questions on the <a href="/faq.html">frequently asked questions</a> page.</p> 
 
 {% capture help_text %}To get help on {{ page.module_details.name }}, simply run the command with no options:{% endcapture %}
 {% capture help_command %}{{ page.module_details.exe_name }}{% endcapture %}
