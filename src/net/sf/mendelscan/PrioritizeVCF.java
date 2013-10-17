@@ -35,7 +35,7 @@ public class PrioritizeVCF {
 		"\tOPTIONS:\n" +
 		"\t--vep-file\tVariant annotation in VEP format\n" +
 		"\t--ped-file\tPedigree file in 6-column tab-delimited format\n" +
-		"\t--expression-file\tA list of gene expression values for tissue of interest\n" +
+		"\t--gene-file\tA list of gene expression values for tissue of interest\n" +
 		"\t--output-file\tOutput file to contain human-friendly scored variants\n" +
 		"\t--output-vcf\tOutput file to contain scored variants in VCF format\n" +
 		"\t--inheritance\tPresumed model of inheritance: dominant, recessive, x-linked [dominant]\n\n" +
@@ -212,6 +212,8 @@ public class PrioritizeVCF {
 	    		return;
 	    	}
 
+	    	System.err.println("Scoring variants under " + inheritanceModel + " disease model");
+
 
 
 	    	// Declare file-parsing variables //
@@ -228,7 +230,7 @@ public class PrioritizeVCF {
 
 			// FOrmat scores for printing //
 			DecimalFormat dfScore = new DecimalFormat("0.000");
-
+			DecimalFormat dfScoreLong = new DecimalFormat("0.00000");
 
 	    	// Save the sample names by column number //
 
@@ -434,7 +436,7 @@ public class PrioritizeVCF {
     		    								// Output line //
     		    								String outLine = chrom + "\t" + position + "\t" + ref + "\t" + altAlleles + "\t";
     		    								// Output scores //
-    		    								outLine += dfScore.format(overallScore) + "\t" + dfScore.format(segScore) + "\t" + dfScore.format(popScore) + "\t" + dfScore.format(annotScore) + "\t" + dfScore.format(expressionScore) + "\t";
+    		    								outLine += dfScoreLong.format(overallScore) + "\t" + dfScore.format(segScore) + "\t" + dfScore.format(popScore) + "\t" + dfScore.format(annotScore) + "\t" + dfScore.format(expressionScore) + "\t";
     		    								// Output pop info //
     		    								outLine += dbsnpStatus + "\t" + id + "\t" + info + "\t";
     		    								// Output segregation info //
@@ -598,19 +600,22 @@ public class PrioritizeVCF {
 		if(inheritanceMode.equals("recessive"))
 		{
 			// Recessive inheritance assumptions //
-			scoreCaseRef = 0.50;
-			scoreCaseHom = 0.80;
-			scoreControlHet = 0.10;
-			scoreControlHom = 0.01;
+			scoreCaseRef = 0.10;
+			scoreCaseHet = 0.80;
+			scoreControlHet = 1.00;	// No penalty as control could be carrier
+			scoreControlHom = 0.50;
 		}
 		else
 		{
 			// Dominant inheritance assumptions //
-			scoreCaseRef = 0.10;
-			scoreCaseHet = 0.50;
-			scoreControlHet = 1.00;	// No penalty as control could be carrier
-			scoreControlHom = 0.50;
+			scoreCaseRef = 0.20;
+			scoreCaseHom = 0.80;
+			scoreCaseHet = 1.00;
+			scoreControlHet = 0.10;
+			scoreControlHom = 0.01;
+
 		}
+
 
 		// Try to get the user's parameter changes //
 
@@ -690,11 +695,13 @@ public class PrioritizeVCF {
 					}
 				}
 
+
 			}
 			else if(inheritanceMode.equals("recessive"))
 			{
 				// Affecteds should be homozygous-variant; unaffecteds could be ref or het //
 				// Assume 50% sensitivity to detect heterozygotes; reduce score dramatically for affecteds called Ref //
+
 
 				if(casesRef > 0)
 				{
