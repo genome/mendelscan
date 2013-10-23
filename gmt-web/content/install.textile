@@ -1,7 +1,4 @@
-{% assign ubuntu_versions = "Ubuntu 10.04" %}
-{% include install/download.html %}
-
-<h2>Other Platforms &amp; Source Code</h2>
+<h2>All Platforms &amp; Source Code</h2>
 <hr />
 
 <h3>Java JAR Download</h3>
