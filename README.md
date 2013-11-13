@@ -33,7 +33,7 @@ Included in the repository is an example data set using [1000 Genomes][] data.
     tar -zxvf example_data.tar.gz
     cd example_data
     java -jar MendelScan.jar score variants.vcf \
-        --vep-file annotation.vep --ped-file family.ped --gene-file expression.tsv \
+        --vep-file annotation.vep --ped-file family.ped --gene-file gene-expression.txt \
         --output-file mendelscan.tsv --output-vcf mendelscan.vcf
 
 [1000 Genomes]: http://www.1000genomes.org
