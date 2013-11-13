@@ -65,17 +65,34 @@ MendelScan breaks the chromosome into windows of a user-specified resolution (de
 
 ### Example
 
-Included in the repository is an example data set using [1000 Genomes][] data.
+Included in the repository is an example data set using [1000 Genomes][] data.  You extract that data and run the following example:
 
 <pre class="terminal">
-tar -zxvf example_data.tar.gz
-cd example_data
-java -jar MendelScan.jar score variants.vcf \
+$ tar -zxvf example_data.tar.gz
+$ cd example_data
+$ java -jar MendelScan.jar score variants.vcf \
     --vep-file annotation.vep \
     --ped-file family.ped \
     --gene-file gene-expression.txt \
     --output-file mendelscan.tsv \
     --output-vcf mendelscan.vcf
+Reading input from variants.vcf
+Loading sample information from family.ped...
+1 males, 2 cases, 1 controls
+Loading gene expression information from gene-expression.txt...
+Expression rank loaded for 38545 genes
+Loading VEP from annotation.vep...
+11181 variants had VEP annotation
+Scoring variants under dominant disease model
+3 samples in VCF (2 affected, 1 unaffected, 1 male)
+11181 variants in VCF file
+11181 matched with VEP annotation
+12846   variants_common
+337 variants_known
+18  variants_mutation
+97  variants_novel
+1359    variants_rare
+466 variants_uncommon
 </pre>
 
 [1000 Genomes]: http://www.1000genomes.org
