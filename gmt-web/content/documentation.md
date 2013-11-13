@@ -67,10 +67,12 @@ MendelScan breaks the chromosome into windows of a user-specified resolution (de
 
 Included in the repository is an example data set using [1000 Genomes][] data.
 
-    tar -zxvf example_data.tar.gz
-    cd example_data
-    java -jar MendelScan.jar score variants.vcf \
-        --vep-file annotation.vep --ped-file family.ped --gene-file gene-expression.txt \
-        --output-file mendelscan.tsv --output-vcf mendelscan.vcf
+<pre class="terminal">
+tar -zxvf example_data.tar.gz
+cd example_data
+java -jar MendelScan.jar score variants.vcf \
+    --vep-file annotation.vep --ped-file family.ped --gene-file gene-expression.txt \
+    --output-file mendelscan.tsv --output-vcf mendelscan.vcf
+</pre>
 
 [1000 Genomes]: http://www.1000genomes.org
