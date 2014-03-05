@@ -179,8 +179,10 @@ public class PrioritizeVCF {
 
 	    	HashMap<String, Double> geneRank = new HashMap();
 
+	    	boolean geneRankingProvided = false;
 	    	if(params.containsKey("gene-file"))
 	    	{
+	    		geneRankingProvided = true;
 		    	System.err.println("Loading gene expression information from " + geneFile + "...");
 		    	try {
 			    	geneRank = MendelScan.loadGeneExpression(geneFile);
@@ -195,7 +197,7 @@ public class PrioritizeVCF {
 	    	}
 	    	else
 	    	{
-	    		System.err.println("No gene expression file provided, so all expression scores will be 0.50");
+	    		System.err.println("No gene expression file provided, so all expression scores will be 1.00");
 	    	}
 
 
@@ -203,6 +205,15 @@ public class PrioritizeVCF {
 	    	if(params.containsKey("vep-file"))
 	    	{
 		    	System.err.println("Loading VEP from " + vepFile + "...");
+		    	try {
+
+		    	}
+		    	catch (Exception e)
+		    	{
+		    		System.err.println("Exception thrown while loading VEP: " + e.getMessage() + " : " + e.getLocalizedMessage());
+		    		e.printStackTrace(System.err);
+		    	}
+
 	    		vepAnnot = MendelScan.loadVEP(vepFile);
 	    		System.err.println(vepAnnot.size() + " variants had VEP annotation");
 	    	}
@@ -247,7 +258,6 @@ public class PrioritizeVCF {
 	    		if(params.containsKey("output-file"))
 	    		{
 	    			outFileHandle = new PrintStream( new FileOutputStream(outFile) );
-					outFileHandle.println("CHROM\tPOSITION\tREF\tALT\tOVERALL_SCORE\tSEGREGATION_SCORE\tPOPULATION_SCORE\tANNOTATION_SCORE\tEXPRESSION_SCORE\tDBSNP_STATUS\tDBSNP_ID\tDBSNP_INFO\tCASES\tCASES_REF\tCASES_HET\tCASES_HOM\tCONTROLS\tCONTROLS_REF\tCONTROLS_HET\tCONTROLS_HOM\tHUGO_GENE\tENSEMBL_GENE\tCANONICAL\tCLASS\tTX_POS\tAA_POS\tAA_CHANGE\tPOLYPHEN\tSIFT\tCONDEL");
 	    		}
 
 	    		if(params.containsKey("output-vcf"))
@@ -293,22 +303,47 @@ public class PrioritizeVCF {
 	    					}
 	    					else
 	    					{
+	    						String fileHeader = "CHROM\tPOSITION\tREF\tALT\tOVERALL_SCORE\tSEGREGATION_SCORE\tPOPULATION_SCORE\tANNOTATION_SCORE\tEXPRESSION_SCORE\tDBSNP_STATUS\tDBSNP_ID\tDBSNP_INFO\tCASES\tCASES_REF\tCASES_HET\tCASES_HOM\tCASES_MISSING\tCONTROLS\tCONTROLS_REF\tCONTROLS_HET\tCONTROLS_HOM\tCONTROLS_MISSING\tHUGO_GENE\tENSEMBL_GENE\tCANONICAL\tCLASS\tTX_POS\tAA_POS\tAA_CHANGE\tPOLYPHEN\tSIFT\tCONDEL";
+
 	    						for(int colCounter = 9; colCounter < lineContents.length; colCounter++)
 	    						{
 	    							numSamples++;
 	    							String sample = lineContents[colCounter];
 
+	    							String sampleGender = "";
+	    							String sampleStatus = "";
+
 	    							// Save sample name //
 	    							samplesByColumn.put(colCounter, sample);
 
 	    							if(controlSamples.containsKey(sample))
+	    							{
 	    								numSamplesControl++;
+	    								sampleStatus = "0";
+	    							}
 	    							else
+	    							{
 	    								numSamplesCase++;
+	    								sampleStatus = "1";
+	    							}
 
 	    							if(maleSamples.containsKey(sample))
+	    							{
 	    								numSamplesMale++;
+	    								sampleGender = "M";
+	    							}
+	    							else
+	    							{
+	    								sampleGender = "F";
+	    							}
+
+	    							fileHeader += "\t" + sample + ":" + sampleGender + ":" + sampleStatus;
+
 	    						}
+
+	    						// Print file header //
+
+	    						outFileHandle.println(fileHeader);
 	    					}
 
 	    				}
@@ -345,7 +380,64 @@ public class PrioritizeVCF {
     	    						numVariants++;
 
     		    					String[] alts = altAlleles.split(",");
+    		    					String vepKey = chrom + "_" + position + "_" + ref + "/" + altAlleles.replace(",", "/");
+      		    					// Go through VCF one alternative allele at a time, finding a VEP key that works //
+
+    		    					for(int altCounter = 0; altCounter < alts.length; altCounter++)
+    		    					{
+    		    						String alt = alts[altCounter];
+    		    						if(alt.length() < ref.length())
+    		    						{
+    		    							// Deletion //
+    		    							String thisRef = ref.replaceFirst(alt, "");
+    		    							String thisAlt = "-";
+    		    							int thisPos = Integer.parseInt(position) + 1;
+    		    							vepKey = chrom + "_" + thisPos + "_" + thisRef + "/" + thisAlt;
+    		    						}
+    		    						else if(alt.length() > ref.length())
+    		    						{
+    		    							// Insertion //
+    		    							String thisAlt = alt.replaceFirst(ref, "");
+    		    							String thisRef = "-";
+    		    							int thisPos = Integer.parseInt(position) + 1;
+    		    							vepKey = chrom + "_" + thisPos + "_" + thisRef + "/" + thisAlt;
+    		    						}
+    		    					}
+
+
+    		    					String vcfKey1 = chrom + "\t" + position + "\t" + id + "\t" + ref + "\t" + altAlleles;
+    		    					String vcfKey2 = chrom + "\t" + position + "\t" + "." + "\t" + ref + "\t" + altAlleles;
+    		    					if(vepAnnot.containsKey(id))
+    		    					{
+    		    						// If RS ID provided, correct the issue //
+    		    						vepKey = id;
+    		    					}
+    		    					else if(vepAnnot.containsKey(vcfKey1))
+    		    					{
+    		    						// If We parsed a VCF formatted VEP file //
+    		    						vepKey = vcfKey1;
+    		    					}
+    		    					else if(vepAnnot.containsKey(vcfKey2))
+    		    					{
+    		    						// If We parsed a VCF formatted VEP file //
+    		    						vepKey = vcfKey2;
+    		    					}
+    		    					else
+    		    					{
+    		    						if(params.containsKey("verbose"))
+    		    						{
+        		    						System.err.println("Got nothing for " + vcfKey1);
+        		    						System.err.println("Got nothing for " + vcfKey2);
+    		    						}
+
+    		    						System.exit(0);
+    		    					}
+
+
+
+
     		    					HashMap<String, String> genotypesBySample = new HashMap();
+    		    					String sampleGenotypes = "";
 
     		    					for(int colCounter = 9; colCounter < lineContents.length; colCounter++)
     		    					{
@@ -377,13 +469,21 @@ public class PrioritizeVCF {
     		    							sampleLine += sampleGT + "\t" + sampleDP + "\t" + sampleAD;
     		    							genotypesBySample.put(sampleName, sampleLine);
 
+    		    							if(sampleGenotypes.length() > 0)
+    		    							{
+    		    								sampleGenotypes += "\t";
+    		    							}
+
+    		    							sampleGenotypes += lineContents[colCounter];
+
     		    						}
 
     		    					}
 
     		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth);
     		    					double segScore = getSegregationScore(chrom, inheritanceModel, segStatus, params);
-    		    					String vepKey = chrom + "_" + position + "_" + ref + "/" + altAlleles.replace(",", "/");
+
+
 
 //    		    					System.out.println(vepKey + "\t" + segStatus + "\t" + segScore);
 
@@ -429,6 +529,8 @@ public class PrioritizeVCF {
     		    								double expressionScore = 0.50;
     		    								if(geneRank.containsKey(hugoGene))
     		    									expressionScore = geneRank.get(hugoGene);
+    		    								else if(!geneRankingProvided)
+    		    									expressionScore = 1.00;		// If no gene rank provided, set all to 1. //
 
     		    								// Calculate the overall score //
     		    								double overallScore = segScore * popScore * annotScore * expressionScore;
@@ -458,7 +560,9 @@ public class PrioritizeVCF {
 
     		    								outLine += hugoGene + "\t" + ensGene + "\t" + canonical + "\t";
     		    								outLine += varClass + "\t" + txPos + "\t" + aaPos + "\t" + aaChange + "\t";
-    		    								outLine += polyphen + "\t" + sift + "\t" + condel;
+    		    								outLine += polyphen + "\t" + sift + "\t" + condel + "\t";
+    		    								outLine += sampleGenotypes;
+
 
     		    		    					if(stats.containsKey("variants_" + dbsnpStatus))
     		    		    					{
@@ -517,16 +621,12 @@ public class PrioritizeVCF {
     	    						}
     	    						else
     	    						{
-    	    							System.err.println("Warning: No VEP info for " + vepKey);
+    	    							if(params.containsKey("verbose"))
+    	    								System.err.println("Warning: No VEP info for " + vepKey);
     	    						}
 
 
-    		    					// Go through VCF one alternative allele at a time //
 
-    		    					for(int altCounter = 0; altCounter < alts.length; altCounter++)
-    		    					{
-    		    						String alt = alts[altCounter];
-    		    					}
     	    					}
 
     						}
@@ -594,22 +694,28 @@ public class PrioritizeVCF {
 		double scoreCaseRef = 1.00;
 		double scoreCaseHet = 1.00;
 		double scoreCaseHom = 1.00;
+		double scoreCaseMissing = 1.00;
 		double scoreControlHet = 1.00;
 		double scoreControlHom = 1.00;
+		double scoreControlMissing = 1.00;
 
 		if(inheritanceMode.equals("recessive"))
 		{
 			// Recessive inheritance assumptions //
 			scoreCaseRef = 0.10;
-			scoreCaseHet = 0.80;
+			scoreCaseHet = 0.50;	// For non-compound hets, let's penalize a het case //
 			scoreControlHet = 1.00;	// No penalty as control could be carrier
 			scoreControlHom = 0.50;
+			scoreCaseMissing = 0.60;
+			scoreControlMissing = 0.80;
 		}
 		else
 		{
-			// Dominant inheritance assumptions //
+			// Dominant and X-linked inheritance assumptions //
 			scoreCaseRef = 0.20;
 			scoreCaseHom = 0.80;
+			scoreCaseMissing = 0.80;
+			scoreControlMissing = 0.50;
 			scoreCaseHet = 1.00;
 			scoreControlHet = 0.10;
 			scoreControlHom = 0.01;
@@ -651,10 +757,12 @@ public class PrioritizeVCF {
 			int casesRef = Integer.parseInt(segContents[1]);
 			int casesHet = Integer.parseInt(segContents[2]);
 			int casesHom = Integer.parseInt(segContents[3]);
-			int controlsCalled = Integer.parseInt(segContents[4]);
-			int controlsRef = Integer.parseInt(segContents[5]);
-			int controlsHet = Integer.parseInt(segContents[6]);
-			int controlsHom = Integer.parseInt(segContents[7]);
+			int casesMissing = Integer.parseInt(segContents[4]);
+			int controlsCalled = Integer.parseInt(segContents[5]);
+			int controlsRef = Integer.parseInt(segContents[6]);
+			int controlsHet = Integer.parseInt(segContents[7]);
+			int controlsHom = Integer.parseInt(segContents[8]);
+			int controlsMissing = Integer.parseInt(segContents[9]);
 			int controlsVariant = controlsHet + controlsHom;
 
 			if(inheritanceMode.equals("dominant"))
@@ -695,13 +803,11 @@ public class PrioritizeVCF {
 					}
 				}
 
-
 			}
 			else if(inheritanceMode.equals("recessive"))
 			{
 				// Affecteds should be homozygous-variant; unaffecteds could be ref or het //
 				// Assume 50% sensitivity to detect heterozygotes; reduce score dramatically for affecteds called Ref //
-
 
 				if(casesRef > 0)
 				{
@@ -732,6 +838,29 @@ public class PrioritizeVCF {
 					}
 				}
 
+			}
+			else
+			{
+				System.err.println("Unrecognized inheritance model: " + inheritanceMode);
+				System.exit(0);
+			}
+
+
+			// Regardless of inheritance, apply penalties for missing data //
+			if(controlsMissing > 0)
+			{
+				for(int controlCounter =0; controlCounter < controlsMissing; controlCounter++)
+				{
+					segScore = segScore * scoreControlMissing;
+				}
+			}
+
+			if(casesMissing > 0)
+			{
+				for(int caseCounter =0; caseCounter < casesMissing; caseCounter++)
+				{
+					segScore = segScore * scoreCaseMissing;
+				}
 			}
 
 		}
