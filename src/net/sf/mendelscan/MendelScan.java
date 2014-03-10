@@ -574,14 +574,15 @@ public class MendelScan {
 		    					{
 		    						varName = lineContents[0];
 				    				// For variants with multiple alt alleles, save only the relevant one //
-				    				if(varName.contains("/"))
+				    				varAllele = lineContents[2];
+
+		    						if(varName.contains("/"))
 				    				{
 				    					String[] varNameContents = varName.split("/");
 				    					varName = varNameContents[0] + "/" + varAllele;
 				    				}
 
 				    				varLocation = lineContents[1];
-				    				varAllele = lineContents[2];
 				    				ensGene = lineContents[3];
 				    				consequence = lineContents[6];
 				    				txPos = lineContents[7];
