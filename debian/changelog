@@ -1,3 +1,9 @@
+mendelscan (1.2.1-1) lucid; urgency=low
+
+  * Imported upstream version 1.2.1.
+
+ -- Nathaniel Nutter <nnutter@genome.wustl.edu>  Fri, 14 Mar 2014 16:06:56 -0500
+
 mendelscan (1.1-alpha2-2) lucid; urgency=low
 
   * Rename package to mendelscan.
