@@ -15,9 +15,9 @@ import java.util.*;
 import java.text.*;
 
 /**
- * A set of tools for variant detection in next-generation sequence data.
+ * A set of tools for analyzing variants from family-based sequencing of inherited disease
  *
- * @version	2.3
+ * @version	1.1
  *
  * @author Daniel C. Koboldt <dkoboldt@genome.wustl.edu>
  *
@@ -60,6 +60,14 @@ public class MendelScan {
 			{
 				score(args, params);
 			}
+			else if(args[0].equals("rhro"))
+			{
+				rhro(args, params);
+			}
+			else if(args[0].equals("sibd"))
+			{
+				sibd(args, params);
+			}
 			else if(params.containsKey("help") || params.containsKey("h"))
 			{
 				// Print usage if -h or --help invoked //
@@ -87,7 +95,36 @@ public class MendelScan {
 	 */
 	public static void score(String[] args, HashMap<String, String> params)
 	{
+		try {
 		PrioritizeVCF myVCF = new PrioritizeVCF(args, params);
+		}
+		catch(Exception e)
+		{
+			System.err.println("Exception thrown: " + e.getMessage());
+			e.printStackTrace(System.err);
+		}
+	}
+
+	/**
+	 * Performs rare heterozygote rule out (RHRO) analysis on a VCF
+	 *
+	 * @param	args			Command-line arguments and parameters
+	 * @param	params			HashMap of parameters
+	 */
+	public static void rhro(String[] args, HashMap<String, String> params)
+	{
+		RareHetRuleOut myRHRO = new RareHetRuleOut(args, params);
+	}
+
+	/**
+	 * Performs shared identity-by-descent (SIBD) analysis
+	 *
+	 * @param	args			Command-line arguments and parameters
+	 * @param	params			HashMap of parameters
+	 */
+	public static void sibd(String[] args, HashMap<String, String> params)
+	{
+		SharedIBD mySIBD = new SharedIBD(args, params);
 	}
 
 
@@ -235,6 +272,7 @@ public class MendelScan {
 		HashMap<String, String> ped = new HashMap<String, String>();
 
 		BufferedReader in = null;
+		int lineCounter = 0;
 
 		// Open the infile //
 		try
@@ -249,21 +287,38 @@ public class MendelScan {
 	    		{
 	    			String[] lineContents = line.split("\t");
 
+	    			// Check for whitespace peds //
+
+	    			if(lineContents.length < 4)
+	    				lineContents = line.split(" ");
+
+	    			lineCounter++;
+
 	    			try {
-	    				String familyID = lineContents[0];
-	    				String individualID = lineContents[1];
-	    				String paternalID = lineContents[2];
-	    				String maternalID = lineContents[3];
-	    				String sex = lineContents[4];
-	    				String status = lineContents[5];
+	    				if(line.startsWith("#"))
+	    				{
+	    					// Skip comment lines in PED file //
+	    				}
+	    				else if(lineContents.length> 5 )
+	    				{
+		    				String familyID = lineContents[0];
+		    				String individualID = lineContents[1];
+		    				String paternalID = lineContents[2];
+		    				String maternalID = lineContents[3];
+		    				String sex = lineContents[4];
+		    				String status = lineContents[5];
 
-	    				String pedLine = familyID + "\t" + paternalID + "\t" + maternalID + "\t" + sex + "\t" + status;
+		    				String pedLine = familyID + "\t" + paternalID + "\t" + maternalID + "\t" + sex + "\t" + status;
 
-	    				ped.put(individualID, pedLine);
+		    				ped.put(individualID, pedLine);
+
+	    				}
+
 	    			}
 	    			catch(Exception e)
 	    			{
-	    				System.err.println("Error parsing PED line, so skipping: " + line);
+	    				System.err.println("Error parsing PED line " + lineCounter + ":" + e.getMessage());
+	    				e.printStackTrace(System.err);
 	    			}
 	    		}
 
@@ -290,8 +345,12 @@ public class MendelScan {
 	static HashMap loadVEP(String fileName)
 	{
 		HashMap<String, String> vep = new HashMap<String, String>();
+		boolean isVCF = false;
+		String[] csqFieldNames = null;
 
 		BufferedReader in = null;
+		Integer lineCounter = 0;
+
 
 		// Open the infile //
 		try
@@ -304,122 +363,332 @@ public class MendelScan {
 				String line = "";
 	    		while ((line = in.readLine()) != null)
 	    		{
-	    			String[] lineContents = line.split("\t");
+	    			// Begin try-catch loop for this VEP line //
+	    			try {
+		    			lineCounter++;
+		    			String varName = "";
+	    				String varLocation = "";
+	    				String varAllele = "";
+	    				String ensGene = "";
+	    				String consequence = "";
+	    				String txPos = "";
+	    				String aaPos = "";
+	    				String aaChange = "";
+	    				String extra = "";
 
-	    			if(line.startsWith("#"))
-	    			{
-	    				// VEP header line //
-	    			}
-	    			else
-	    			{
-	    				if(lineContents.length < 13)
-	    				{
-	    					System.err.println("Warning: VEP line had " + lineContents.length + " elements when 13+ expected; skipping");
-	    				}
-	    				else
-	    				{
-		    				String varName = lineContents[0];
-		    				String varLocation = lineContents[1];
-		    				String varAllele = lineContents[2];
-		    				String ensGene = lineContents[3];
-		    				String consequence = lineContents[6];
-		    				String txPos = lineContents[7];
-		    				String aaPos = lineContents[9];
-		    				String aaChange = lineContents[10];
-		    				String extra = lineContents[13];
+	    				String hugoGene = "-";
+	    				String canonical = "NO";
+	    				String polyphen = "-";
+	    				String sift = "-";
+	    				String condel = "-";
 
-		    				String hugoGene = "-";
-		    				String canonical = "NO";
-		    				String polyphen = "-";
-		    				String sift = "-";
-		    				String condel = "-";
 
-		    				// Parse out the relevant extra information //
-		    				try {
-		    					if(extra.length() > 0)
-		    					{
-				    				String[] extraContents = extra.split(";");
+
+		    			String[] lineContents = line.split("\t");
+
+		    			if(line.startsWith("#"))
+		    			{
+		    				// VEP header line; check for VCF //
+		    				if(lineCounter == 1 && line.contains("VCF"))
+		    						isVCF = true;
+		    				else if(isVCF && line.contains("INFO=<ID=CSQ"))
+		    				{
+		    					// If we are in a VCF file and this line contains the CSQ info, take it //
+		    					try {
+				    				String[] extraContents = line.split("\"");
+
+				    				// Parse out the field names for CSQ //
+
 				    				for (int fieldCounter = 0; fieldCounter < extraContents.length; fieldCounter++)
 				    				{
-				    					String[] fieldContents = extraContents[fieldCounter].split("=");
-				    					if(fieldContents.length > 1)
+				    					if(extraContents[fieldCounter].contains("Description") && fieldCounter < (extraContents.length - 1))
 				    					{
-					    					String fieldName = fieldContents[0];
-					    					String fieldValue = fieldContents[1];
-
-					    					if(fieldName.equals("HGNC"))
-					    						hugoGene = fieldValue;
-					    					else if(fieldName.equals("CANONICAL"))
-					    						canonical = fieldValue;
-					    					else if(fieldName.equals("PolyPhen"))
-					    						polyphen = fieldValue;
-					    					else if(fieldName.equals("SIFT"))
-					    						sift = fieldValue;
-					    					else if(fieldName.equals("Condel"))
-					    						condel = fieldValue;
+				    						String desc = extraContents[fieldCounter + 1];
+				    						String[] temp = desc.split(":");
+				    						desc = temp[1].replaceFirst(" ", "");
+				    						desc = desc.replace("|", "\t");
+				    						csqFieldNames = desc.split("\t");
 				    					}
-
 				    				}
 
+				    				// Uncomment to Print CSQ field names to user //
+				    				for (int fieldCounter = 0; fieldCounter < csqFieldNames.length; fieldCounter++)
+				    				{
+//				    					System.err.println("CSQ Field " + fieldCounter + " is " + csqFieldNames[fieldCounter]);
+				    				}
+
+
 		    					}
-
-		    				}
-		    				catch(Exception e)
-		    				{
-		    					System.err.println("Exception thrown while parsing VEP extra info for " + line);
-		    					e.printStackTrace(System.err);
-		    				}
-
-		    				if(canonical.equals("YES"))
-		    					canonical = "CANONICAL";
-
-		    				String vepAnnot = ensGene;
-		    				vepAnnot += "\t" + hugoGene;
-		    				vepAnnot += "\t" + consequence;
-		    				vepAnnot += "\t" + canonical;
-		    				vepAnnot += "\t" + polyphen;
-		    				vepAnnot += "\t" + sift;
-		    				vepAnnot += "\t" + condel;
-		    				//if(!txPos.equals("-"))
-
-		    				vepAnnot += "\t" + txPos;
-		    				vepAnnot += "\t" + aaPos;
-		    				vepAnnot += "\t" + aaChange;
-
-		    				int vepScore = getVEPscore(vepAnnot);
-		    				vepAnnot += "\t" + vepScore;
-
-
-		    				if(vep.containsKey(varName))
-		    				{
-		    					// If this is not canonical but the previous annotation is, keep it
-		    					if(vep.get(varName).contains("CANONICAL"))
+		    					catch(Exception e)
 		    					{
-		    						if(extra.contains("CANONICAL"))
-		    						{
-		    							// Add if they're both canonical which means different genes //
-		    							vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
-		    						}
+		    						System.err.println("Exception thrown while attempting to parse CSQ info from header: " + e.getMessage());
+		    						e.printStackTrace(System.err);
+		    						System.exit(0);
 		    					}
-		    					else if(extra.contains("CANONICAL"))
+		    				}
+		    			}
+		    			else
+		    			{
+		    				// Obtain unique variant name for VCF or VEP native output format //
+
+		    				if(isVCF)
+		    				{
+		    					if(lineContents.length < 8)
 		    					{
-		    						// THis one is canonical, previous was not, so overwrite //
-		    						vep.put(varName, vepAnnot);
+		    						System.err.println("Warning: VEP VCF line had " + lineContents.length + " elements when 8+ expected; skipping");
 		    					}
 		    					else
 		    					{
-		    						// Append if neither canonical //
-		    						vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
-		    					}
+				    				String chrom = lineContents[0];
+				    				String pos = lineContents[1];
+				    				String id = lineContents[2];
+				    				String ref = lineContents[3];
+				    				String alt = lineContents[4];
+				    				String info = lineContents[7];
+				    				varName = chrom + "\t" + pos + "\t" + id + "\t" + ref + "\t" + alt;
 
+				    				try {
+					    				// Try to get CSQ information //
+					    				String csq = "";
+
+					    				String[] infoContents = info.split(";");
+					    				for (int fieldCounter = 0; fieldCounter < infoContents.length; fieldCounter++)
+					    				{
+					    					String[] fieldContents = infoContents[fieldCounter].split("=");
+					    					if(fieldContents.length > 1)
+					    					{
+						    					String fieldName = fieldContents[0];
+						    					String fieldValue = fieldContents[1];
+						    					if(fieldName.equals("CSQ"))
+						    						csq = fieldValue;
+					    					}
+					    				}
+
+
+					    				// IF we got consequences, run through them //
+					    				if(csq.length() > 0)
+					    				{
+					    					String[] csqLines = csq.split(",");
+					    					for (int csqCounter = 0; csqCounter < csqLines.length; csqCounter++)
+					    					{
+					    						String csqLine = csqLines[csqCounter].replace("|", "\t");
+					    						String[] csqContents = csqLine.split("\t");
+					    						// Go through this consequence and assemble VEP annotation //
+					    						for (int fieldCounter = 0; fieldCounter < csqContents.length; fieldCounter++)
+					    						{
+					    							if(fieldCounter < csqFieldNames.length)
+					    							{
+						    							String fieldName = csqFieldNames[fieldCounter].toUpperCase();
+					    								String fieldValue = csqContents[fieldCounter];
+
+								    					if(fieldName.equals("HGNC") || fieldName.equals("SYMBOL"))
+								    						hugoGene = fieldValue;
+								    					else if(fieldName.equals("CONSEQUENCE"))
+								    						consequence = fieldValue;
+								    					else if(fieldName.equals("CDNA_POSITION"))
+								    						txPos = fieldValue;
+								    					else if(fieldName.equals("PROTEIN_POSITION"))
+								    						aaPos = fieldValue;
+								    					else if(fieldName.equals("AMINO_ACIDS"))
+								    						aaChange = fieldValue;
+								    					else if(fieldName.equals("CANONICAL"))
+								    						canonical = fieldValue;
+								    					else if(fieldName.equals("POLYPHEN"))
+								    						polyphen = fieldValue;
+								    					else if(fieldName.equals("SIFT"))
+								    						sift = fieldValue;
+								    					else if(fieldName.equals("CONDEL"))
+								    						condel = fieldValue;
+					    							}
+
+					    						}
+
+					    						// Build the annotation line //
+
+					    						if(canonical.equals("YES"))
+							    					canonical = "CANONICAL";
+
+							    				String vepAnnot = ensGene;
+							    				vepAnnot += "\t" + hugoGene;
+							    				vepAnnot += "\t" + consequence;
+							    				vepAnnot += "\t" + canonical;
+							    				vepAnnot += "\t" + polyphen;
+							    				vepAnnot += "\t" + sift;
+							    				vepAnnot += "\t" + condel;
+							    				//if(!txPos.equals("-"))
+
+							    				vepAnnot += "\t" + txPos;
+							    				vepAnnot += "\t" + aaPos;
+							    				vepAnnot += "\t" + aaChange;
+
+							    				int vepScore = getVEPscore(vepAnnot);
+							    				vepAnnot += "\t" + vepScore;
+
+							    				if(vep.containsKey(varName))
+							    				{
+							    					// If this is not canonical but the previous annotation is, keep it
+							    					if(vep.get(varName).contains("CANONICAL"))
+							    					{
+							    						if(extra.contains("CANONICAL"))
+							    						{
+							    							// Add if they're both canonical which means different genes //
+							    							vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
+							    						}
+							    					}
+							    					else if(extra.contains("CANONICAL"))
+							    					{
+							    						// THis one is canonical, previous was not, so overwrite //
+							    						vep.put(varName, vepAnnot);
+							    					}
+							    					else
+							    					{
+							    						// Append if neither canonical //
+							    						vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
+							    					}
+
+							    				}
+							    				else
+							    				{
+							    					vep.put(varName, vepAnnot);
+							    				}
+
+					    					}
+					    				}
+
+				    				}
+				    				catch(Exception e)
+				    				{
+				    					System.err.println(e.getMessage());
+				    				}
+
+				    				//Format: Allele|Gene|Feature|Feature_type|Consequence|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|CANONICAL|SYMBOL|SYMBOL_SOURCE
+		    					}
 		    				}
 		    				else
 		    				{
-		    					vep.put(varName, vepAnnot);
+		    					if(lineContents.length < 13)
+			    				{
+			    					System.err.println("Warning: VEP line had " + lineContents.length + " elements when 13+ expected; skipping");
+			    				}
+		    					else
+		    					{
+		    						varName = lineContents[0];
+				    				// For variants with multiple alt alleles, save only the relevant one //
+				    				varAllele = lineContents[2];
+
+		    						if(varName.contains("/"))
+				    				{
+				    					String[] varNameContents = varName.split("/");
+				    					varName = varNameContents[0] + "/" + varAllele;
+				    				}
+
+				    				varLocation = lineContents[1];
+				    				ensGene = lineContents[3];
+				    				consequence = lineContents[6];
+				    				txPos = lineContents[7];
+				    				aaPos = lineContents[9];
+				    				aaChange = lineContents[10];
+				    				extra = "";
+
+				    				if(lineContents.length >= 14)
+				    				{
+				    					extra = lineContents[13];
+
+				    				}
+
+				    				// Parse out the relevant extra information //
+				    				try {
+					    				String[] extraContents = extra.split(";");
+					    				for (int fieldCounter = 0; fieldCounter < extraContents.length; fieldCounter++)
+					    				{
+					    					String[] fieldContents = extraContents[fieldCounter].split("=");
+					    					if(fieldContents.length > 1)
+					    					{
+						    					String fieldName = fieldContents[0];
+						    					String fieldValue = fieldContents[1];
+
+						    					if(fieldName.equals("HGNC"))
+						    						hugoGene = fieldValue;
+						    					else if(fieldName.equals("CANONICAL"))
+						    						canonical = fieldValue;
+						    					else if(fieldName.equals("PolyPhen"))
+						    						polyphen = fieldValue;
+						    					else if(fieldName.equals("SIFT"))
+						    						sift = fieldValue;
+						    					else if(fieldName.equals("Condel"))
+						    						condel = fieldValue;
+					    					}
+
+					    				}
+
+
+
+				    				}
+				    				catch(Exception e)
+				    				{
+				    					System.err.println("Exception thrown while parsing VEP extra info for " + line);
+				    					e.printStackTrace(System.err);
+				    				}
+		    					}
+
+
+			    				if(canonical.equals("YES"))
+			    					canonical = "CANONICAL";
+
+			    				String vepAnnot = ensGene;
+			    				vepAnnot += "\t" + hugoGene;
+			    				vepAnnot += "\t" + consequence;
+			    				vepAnnot += "\t" + canonical;
+			    				vepAnnot += "\t" + polyphen;
+			    				vepAnnot += "\t" + sift;
+			    				vepAnnot += "\t" + condel;
+			    				//if(!txPos.equals("-"))
+
+			    				vepAnnot += "\t" + txPos;
+			    				vepAnnot += "\t" + aaPos;
+			    				vepAnnot += "\t" + aaChange;
+
+			    				int vepScore = getVEPscore(vepAnnot);
+			    				vepAnnot += "\t" + vepScore;
+
+
+			    				if(vep.containsKey(varName))
+			    				{
+			    					// If this is not canonical but the previous annotation is, keep it
+			    					if(vep.get(varName).contains("CANONICAL"))
+			    					{
+			    						if(extra.contains("CANONICAL"))
+			    						{
+			    							// Add if they're both canonical which means different genes //
+			    							vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
+			    						}
+			    					}
+			    					else if(extra.contains("CANONICAL"))
+			    					{
+			    						// THis one is canonical, previous was not, so overwrite //
+			    						vep.put(varName, vepAnnot);
+			    					}
+			    					else
+			    					{
+			    						// Append if neither canonical //
+			    						vep.put(varName, vep.get(varName) + "\n" + vepAnnot);
+			    					}
+
+			    				}
+			    				else
+			    				{
+			    					vep.put(varName, vepAnnot);
+			    				}
 		    				}
-	    				}
 
 
+		    			}
+
+	    			}
+	    			catch(Exception e)
+	    			{
+	    		    	System.err.println("Warning: Exception thrown while parsing VEP line " + line + " : " + e.getMessage() + " : " + e.getLocalizedMessage());
+	    		    	e.printStackTrace(System.err);
 	    			}
 	    		}
 
@@ -428,7 +697,8 @@ public class MendelScan {
 		}
 		catch(Exception e)
 		{
-	    	System.err.println("ERROR: Unable to open VEP file " + fileName + " for reading\n");
+	    	System.err.println("ERROR: Exception thrown while opening VEP file " + fileName + " : " + e.getMessage() + " : " + e.getLocalizedMessage());
+	    	e.printStackTrace(System.err);
 	    	System.exit(10);
 		}
 
@@ -453,19 +723,19 @@ public class MendelScan {
 		String sift = vepContents[5];
 		String condel = vepContents[6];
 
-		if(consequence.contains("STOP_GAINED"))
+		if(consequence.toUpperCase().contains("STOP_GAINED"))
 		{
 			score = 17;
 		}
-		else if(consequence.contains("FRAMESHIFT_CODING"))
+		else if(consequence.toUpperCase().contains("FRAMESHIFT_CODING"))
 		{
 			score = 16;
 		}
-		else if(consequence.contains("ESSENTIAL_SPLICE_SITE"))
+		else if(consequence.toUpperCase().contains("ESSENTIAL_SPLICE_SITE"))
 		{
 			score = 15;
 		}
-		else if(consequence.contains("NON_SYNONYMOUS_CODING"))
+		else if(consequence.toUpperCase().contains("NON_SYNONYMOUS_CODING") || consequence.toUpperCase().contains("MISSENSE_VARIANT"))
 		{
 			int numSayDeleterious = 0;
 			int numSayNeutral = 0;
@@ -482,49 +752,305 @@ public class MendelScan {
 			// Score is 11 plus the number of algorithms calling it deleterious, so max 14 //
 			score = 11 + numSayDeleterious;
 		}
-		else if(consequence.contains("STOP_LOST"))
+		else if(consequence.toUpperCase().contains("STOP_LOST"))
 		{
 			score = 10;
 		}
-		else if(consequence.contains("SYNONYMOUS_CODING"))
+		else if(consequence.toUpperCase().contains("SPLICE_SITE"))
 		{
 			score = 9;
 		}
-		else if(consequence.contains("CODING_UNKNOWN") || consequence.contains("PARTIAL_CODON") || consequence.contains("COMPLEX_INDEL"))
+		else if(consequence.toUpperCase().contains("TF_BINDING_SITE"))
+		{
+			score = 9;
+		}
+		else if(consequence.toUpperCase().contains("SYNONYMOUS_CODING") || consequence.toUpperCase().contains("CODING_UNKNOWN") || consequence.toUpperCase().contains("PARTIAL_CODON") || consequence.contains("COMPLEX_INDEL"))
 		{
 			score = 8;
 		}
-		else if(consequence.contains("WITHIN_MATURE_miRNA"))
+		else if(consequence.toUpperCase().contains("MIRNA"))
 		{
 			score = 7;
 		}
-		else if(consequence.contains("WITHIN_NON_CODING_GENE"))
+		else if(consequence.toUpperCase().contains("REGULATORY"))
+		{
+			score = 7;
+		}
+		else if(consequence.toUpperCase().contains("WITHIN_NON_CODING_GENE") || consequence.toUpperCase().contains("NC_TRANSCRIPT"))
 		{
 			score = 6;
 		}
-		else if(consequence.contains("UTR"))
+		else if(consequence.toUpperCase().contains("UTR"))
 		{
 			score = 5;
 		}
-		else if(consequence.contains("UPSTREAM"))
+		else if(consequence.toUpperCase().contains("UPSTREAM"))
 		{
 			score = 4;
 		}
-		else if(consequence.contains("DOWNSTREAM"))
+		else if(consequence.toUpperCase().contains("DOWNSTREAM"))
 		{
 			score = 3;
 		}
-		else if(consequence.contains("INTRONIC"))
+		else if(consequence.toUpperCase().contains("INTRON"))
 		{
 			score = 2;
 		}
-		else if(consequence.contains("INTERGENIC"))
+		else if(consequence.toUpperCase().contains("INTERGENIC"))
 		{
 			score = 1;
 		}
 
 		return(score);
 	}
+
+
+
+	/**
+	 * Returns the population score based on dbSNP information and user-specified thresholds
+	 *
+	 * @param	info	HashMap of dbSNP information from ID and INFO columns
+	 * @return			String with one of several possible dbSNP statuses
+	 */
+	static String getDbsnpStatus(HashMap<String, String> info)
+	{
+		String status = "unknown";
+
+		try {
+			if(info.containsKey("G5") || info.containsKey("G5A"))
+			{
+				status = "common";
+			}
+			else if(info.containsKey("GMAF"))
+			{
+				Double gmaf = Double.parseDouble(info.get("GMAF"));
+				if(gmaf >= 0.05)
+				{
+					status = "common";
+				}
+				else if(gmaf >= 0.01)
+				{
+					status = "uncommon";
+				}
+				else
+				{
+					status = "rare";
+				}
+			}
+			else if(info.containsKey("KGPilot123"))
+			{
+				status = "rare";
+			}
+			else if(info.containsKey("RSnumber"))
+			{
+				status = "known";
+			}
+			else
+			{
+				status = "novel";
+			}
+
+			// Also check for dbSNP flags of mutations. These override novel/known/rare variant status //
+
+			if(info.containsKey("MUT") || info.containsKey("CLN") || info.containsKey("PM"))
+			{
+				if(status.equals("novel") || status.equals("known") || status.equals("rare"))
+				{
+					status = "mutation";
+				}
+			}
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while determining dbSNP status: " + e.getMessage());
+		}
+
+		return(status);
+	}
+
+
+	/**
+	 * Determines the numbers of cases/controls ref/het/hom for a variant
+	 *
+	 * @param	genotypes	Gender, disease status, and genotype of each sample
+	 * @param	minDepth	Integer of minimum depth threshold for confident genotype calling
+	 * @return	segStatus	A string with counts of cases/controls ref/het/hom at variant position
+	 */
+	static String getSegregationStatus(HashMap<String, String> genotypes, Integer minDepth)
+	{
+		String segStatus = "unknown";
+		String altFreqs = "";
+
+		int casesCalled = 0;
+		int casesRef = 0;
+		int casesHet = 0;
+		int casesHom = 0;
+		int casesMissing = 0;
+		int controlsCalled = 0;
+		int controlsRef = 0;
+		int controlsHet = 0;
+		int controlsHom = 0;
+		int controlsMissing = 0;
+
+		// FOrmat scores for printing //
+		DecimalFormat dfFreq = new DecimalFormat("0.000");
+
+		try {
+			for (String sample : genotypes.keySet())
+			{
+				try {
+					String[] sampleContents = genotypes.get(sample).split("\t");
+					String status = sampleContents[0];
+					String gender = sampleContents[1];
+					String gt = sampleContents[2];
+					String sampleDP = sampleContents[3];
+					String sampleAD = sampleContents[4];
+
+					int sampleReads1 = 0;
+					int sampleReads2 = 0;
+
+					if(!gt.equals(".") && !gt.equals("./."))
+					{
+						// Obtain sequence depth and allele depth //
+						Integer depth = 0;
+
+						try {
+							if(sampleContents[3].length() > 0 && !sampleContents[3].equals("."))
+							{
+								depth = Integer.parseInt(sampleContents[3]);
+							}
+
+							String[] adContents = sampleAD.split(",");
+							for(int aCounter = 0; aCounter < adContents.length; aCounter++)
+							{
+								int thisReads2 = Integer.parseInt(adContents[aCounter]);
+								if(thisReads2 > sampleReads2)
+									sampleReads2 = thisReads2;
+							}
+						}
+						catch (Exception e)
+						{
+
+						}
+
+						double sampleVAF = 0.00;
+
+						if(depth > 0)
+						{
+							sampleReads1 = depth - sampleReads2;
+							sampleVAF = (double) sampleReads2 / (double) depth;
+							altFreqs += "\t" + dfFreq.format(sampleVAF);
+						}
+						else
+						{
+							altFreqs += "\tNA";
+						}
+
+
+						// Check to see if this variant matches the expectation //
+						if(status.equals("case"))
+						{
+							casesCalled++;
+							// CASE //
+							if(MendelScan.isHeterozygous(gt))
+							{
+								casesHet++;
+							}
+							else
+							{
+								if(MendelScan.isHomozygous(gt))
+								{
+									casesHom++;
+								}
+								else if(MendelScan.isReference(gt))
+								{
+									// Determine if we have sufficient depth and VAF is less than 5% //
+									if(depth >= minDepth)
+									{
+										// If SampleVAF is appreciable, don't count as ref //
+										if(sampleVAF >= 0.05)
+										{
+											// Just don't count it, or change it to het? //
+											if(sampleVAF >= 0.10)
+											{
+												casesHet++;
+											}
+											else
+											{
+												casesMissing++;
+											}
+										}
+										else
+										{
+											casesRef++;
+										}
+									}
+									else
+									{
+										casesMissing++;
+									}
+								}
+
+
+							}
+						}
+						else
+						{
+							// CONTROL //
+							controlsCalled++;
+							if(MendelScan.isHeterozygous(gt))
+							{
+								controlsHet++;
+							}
+							else if(MendelScan.isHomozygous(gt))
+							{
+								controlsHom++;
+							}
+							else if(MendelScan.isReference(gt))
+							{
+								if(depth >= minDepth)
+									controlsRef++;
+								else
+									controlsMissing++;
+							}
+
+						}
+
+					}
+					else
+					{
+						if(status.equals("case"))
+						{
+							casesMissing++;
+						}
+						else
+						{
+							controlsMissing++;
+						}
+						// Genotype was filtered, so altfreqs not calculated //
+						altFreqs += "\tNA";
+					}
+				}
+				catch(Exception e)
+				{
+					System.err.println("Exception thrown while trying to parse data for " + sample + ": " + genotypes.get(sample));
+				}
+
+			}
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Exception thrown while calculating segregation score: " + e.getMessage());
+		}
+		segStatus = casesCalled + "\t" + casesRef + "\t" + casesHet + "\t" + casesHom + "\t" + casesMissing;
+		segStatus += "\t";
+		segStatus += controlsCalled + "\t" + controlsRef + "\t" + controlsHet + "\t" + controlsHom + "\t" + controlsMissing;// + altFreqs;
+
+		return(segStatus);
+	}
+
 
 
 	/**
@@ -587,6 +1113,67 @@ public class MendelScan {
 
 		return(genes);
 	}
+
+
+	/**
+	 * Load a BED file of centromeres by chromosome
+	 *
+	 * @param	fileName	Name of the input file
+
+	 * @return	genes		A hashmap of centromeres by chromosome
+	 */
+	static HashMap loadCentromeres(String fileName)
+	{
+		HashMap<String, String> regions = new HashMap<String, String>();
+
+		BufferedReader in = null;
+
+		// Open the infile //
+		try
+		{
+			File infile = new File(fileName);
+			in = new BufferedReader(new FileReader(infile));
+
+			if(in != null && in.ready())
+			{
+				String line = "";
+				Integer lineCounter = 0;
+	    		while ((line = in.readLine()) != null)
+	    		{
+	    			lineCounter++;
+	    			String[] lineContents = line.split("\t");
+
+	    			try {
+	    				if(lineContents.length >= 3)
+	    				{
+		    				String chrom = lineContents[0];
+		    				Integer chrStart = Integer.parseInt(lineContents[1]);
+		    				Integer chrStop = Integer.parseInt(lineContents[2]);
+		    				regions.put(chrom, chrStart + "\t" + chrStop);
+	    				}
+
+	    			}
+	    			catch(Exception e)
+	    			{
+	    				System.err.println("Error parsing PED line, so skipping: " + line);
+	    			}
+	    		}
+
+	    		in.close();
+
+
+			}
+		}
+		catch(Exception e)
+		{
+	    	System.err.println("ERROR: Unable to open VEP file " + fileName + " for reading\n");
+	    	System.exit(10);
+		}
+
+
+		return(regions);
+	}
+
 
 
 	/**
