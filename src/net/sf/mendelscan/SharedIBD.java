@@ -76,7 +76,7 @@ public class SharedIBD {
 			{
 				ibdScoreThreshold = params.get("ibd-score-threshold");
 				try {
-					System.err.println("IBD score threshold: " + Double.valueOf("10E-10"));
+					System.err.println("IBD score threshold: " + Double.valueOf(ibdScoreThreshold));
 				}
 				catch (Exception e)
 				{
@@ -264,7 +264,7 @@ public class SharedIBD {
         					Integer index2 = Integer.parseInt(lineContents[3]);
         					Double pvalue = Double.valueOf(lineContents[4]);
 
-        					if(pvalue < Double.valueOf("10E-10"))
+        					if(pvalue < Double.valueOf(ibdScoreThreshold))
         					{
         						// IBD segment significant //
         						if(stats.containsKey("IBD segments significant"))
