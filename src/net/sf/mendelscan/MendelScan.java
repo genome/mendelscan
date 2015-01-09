@@ -907,6 +907,14 @@ public class MendelScan {
 					String sampleDP = sampleContents[3];
 					String sampleAD = sampleContents[4];
 
+					// GATK VCFs have allele depths as ref, alt. Check for that //
+					if(sampleAD.contains(","))
+					{
+						String[] sampleADcontents = sampleAD.split(",");
+						if(sampleADcontents.length > 1)
+							sampleAD = sampleADcontents[1];
+					}
+
 					int sampleReads1 = 0;
 					int sampleReads2 = 0;
 
@@ -1079,15 +1087,15 @@ public class MendelScan {
 	    		while ((line = in.readLine()) != null)
 	    		{
 	    			lineCounter++;
-	    			String[] lineContents = line.split("\t");
-
 	    			try {
+		    			String[] lineContents = line.split("\t");
 	    				String gene = lineContents[0];
 	    				genes.put(gene, (double) lineCounter);
 	    			}
 	    			catch(Exception e)
 	    			{
-	    				System.err.println("Error parsing PED line, so skipping: " + line);
+	    				System.err.println("WARNING: Exception thrown while parsing gene expression file, line " + lineCounter + ": " + line);
+	    				System.err.println("Message: " + e.getMessage());
 	    			}
 	    		}
 
@@ -1096,17 +1104,28 @@ public class MendelScan {
 	    		// Now that we have the total number of lines, go back through and compute the rank of each gene //
 	    		for (String gene : genes.keySet())
 	    		{
-	    			double pctRank = 1.00 - (genes.get(gene) / (double) lineCounter);
-	    			genes.put(gene, pctRank);
+	    			try {
+	    				double pctRank = 1.00 - (genes.get(gene) / (double) lineCounter);
+	    				genes.put(gene, pctRank);
+	    			}
+	    			catch(Exception e)
+	    			{
+	    				System.err.println("WARNING: Exception thrown while ranking genes from expression file: " + e.getMessage());
+	    			}
 
 	    		}
 
 
 			}
+			else
+			{
+				System.err.println("ERROR: Unable to open VEP file " + fileName + " for reading\n");
+			}
 		}
 		catch(Exception e)
 		{
-	    	System.err.println("ERROR: Unable to open VEP file " + fileName + " for reading\n");
+	    	System.err.println("ERROR: Exception thrown while parsing gene expression file " + fileName + ": " + e.getMessage());
+	    	e.printStackTrace(System.err);
 	    	System.exit(10);
 		}
 

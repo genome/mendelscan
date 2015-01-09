@@ -312,6 +312,8 @@ public class PrioritizeVCF {
 	    							numSamples++;
 	    							String sample = lineContents[colCounter];
 
+	    							String sampleLogLine = sample;
+
 	    							String sampleGender = "";
 	    							String sampleStatus = "";
 
@@ -320,27 +322,32 @@ public class PrioritizeVCF {
 
 	    							if(controlSamples.containsKey(sample))
 	    							{
+	    								sampleLogLine += "\tControl";
 	    								numSamplesControl++;
 	    								sampleStatus = "0";
 	    							}
 	    							else
 	    							{
+	    								sampleLogLine += "\tCase";
 	    								numSamplesCase++;
 	    								sampleStatus = "1";
 	    							}
 
 	    							if(maleSamples.containsKey(sample))
 	    							{
+	    								sampleLogLine += "\tMale";
 	    								numSamplesMale++;
 	    								sampleGender = "M";
 	    							}
 	    							else
 	    							{
+	    								sampleLogLine += "\tFemale";
 	    								sampleGender = "F";
 	    							}
 
 	    							fileHeader += "\t" + sample + ":" + sampleGender + ":" + sampleStatus;
 
+	    							System.err.println("SAMPLE:\t" + sampleLogLine);
 	    						}
 
 	    						// Print file header //
