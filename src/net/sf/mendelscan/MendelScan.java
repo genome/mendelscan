@@ -894,7 +894,7 @@ public class MendelScan {
 	 * @param	minDepth	Integer of minimum depth threshold for confident genotype calling
 	 * @return	segStatus	A string with counts of cases/controls ref/het/hom at variant position
 	 */
-	static String getSegregationStatus(HashMap<String, String> genotypes, Integer minDepth)
+	static String getSegregationStatus(HashMap<String, String> genotypes, Integer minDepth, Double maxVAFforRef, Double minVAFtoRecall)
 	{
 		String segStatus = "unknown";
 		String altFreqs = "";
@@ -909,6 +909,7 @@ public class MendelScan {
 		int controlsHet = 0;
 		int controlsHom = 0;
 		int controlsMissing = 0;
+
 
 		// FOrmat scores for printing //
 		DecimalFormat dfFreq = new DecimalFormat("0.000");
@@ -994,10 +995,10 @@ public class MendelScan {
 									if(depth >= minDepth)
 									{
 										// If SampleVAF is appreciable, don't count as ref //
-										if(sampleVAF >= 0.05)
+										if(sampleVAF >= maxVAFforRef)
 										{
 											// Just don't count it, or change it to het? //
-											if(sampleVAF >= 0.10)
+											if(sampleVAF >= minVAFtoRecall)
 											{
 												casesHet++;
 											}

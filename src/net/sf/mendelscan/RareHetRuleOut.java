@@ -42,6 +42,8 @@ public class RareHetRuleOut {
 		String centromereFile = null;
 		String inheritanceModel = "dominant";
 		Integer minDepth = 20;
+		double maxVAFforRef = 0.05;
+		double minVAFtoRecall = 0.20;
 
 		// Print usage if -h or --help invoked //
 		if(params.containsKey("help") || params.containsKey("h"))
@@ -65,6 +67,15 @@ public class RareHetRuleOut {
 
 			if(params.containsKey("centromere-file"))
 				centromereFile = params.get("centromere-file");
+
+			if(params.containsKey("min-read-depth"))
+				minDepth = Integer.parseInt(params.get("min-read-depth"));
+
+			if(params.containsKey("max-vaf-for-ref"))
+				maxVAFforRef = Double.parseDouble(params.get("max-vaf-for-ref"));
+
+			if(params.containsKey("min-vaf-to-recall"))
+				minVAFtoRecall = Double.parseDouble(params.get("min-vaf-to-recall"));
 		}
 
 
@@ -399,7 +410,7 @@ public class RareHetRuleOut {
     		    					}
 
     		    					// Get Segregation Status //
-    		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth);
+    		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth, maxVAFforRef, minVAFtoRecall);
     		    					String[] segContents = segStatus.split("\t");
     		    					int casesCalled = Integer.parseInt(segContents[0]);
     		    					int casesRef = Integer.parseInt(segContents[1]);

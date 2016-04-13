@@ -44,7 +44,10 @@ public class PrioritizeVCF {
 		"\t--seg-score-case-het\tA case sample was called heterozygous (NA/0.50)\n" +
 		"\t--seg-score-case-hom\tA case sample was called homozygous variant (0.80/NA)\n" +
 		"\t--seg-score-control-het\tA case sample was called heterozygous (0.10/NA)\n" +
-		"\t--seg-score-control-hom\tA case sample was called homozygous variant (0.01/0.10)\n\n" +
+		"\t--seg-score-control-hom\tA case sample was called homozygous variant (0.01/0.10)\n" +
+		"\\t--min-read-depth\tMinimum read depth to consider a confident genotype call [20]\n" +
+		"\t--max-vaf-for-ref\tMaximum non-ref (variant) allele frequency at ref site to count as ref [0.05]\n" +
+		"\t--min-vaf-to-recall\tMinimum VAF at which a reference genotype will be considered het. To disable recall, set to 1.01 [0.20]\n\n" +
 		"\tPopulation Scoring: Population score for these classes defined by dbSNP information\n" +
 		"\t--pop-score-novel\tVariant is not present in dbSNP according to VCF (1.00)\n" +
 		"\t--pop-score-mutation\tVariant from mutation (OMIM) or locus-specific databases (0.95)\n" +
@@ -71,13 +74,13 @@ public class PrioritizeVCF {
 		"\t--anno-score-16\tScore for frameshift mutations [1.00]\n" +
 		"\t--anno-score-17\tScore for nonsense mutations [1.00]\n";
 
+
 		String vepFile = null;
 		String pedFile = null;
 		String geneFile = null;
 		String outFile = null;
 		String outVCF = null;
 		String inheritanceModel = "dominant";
-		Integer minDepth = 20;
 
 		// Print usage if -h or --help invoked //
 		if(params.containsKey("help") || params.containsKey("h"))
@@ -87,23 +90,104 @@ public class PrioritizeVCF {
 		}
 		else
 		{
-			if(params.containsKey("vep-file"))
-				vepFile = params.get("vep-file");
+			try
+			{
+				if(params.containsKey("vep-file"))
+					vepFile = params.get("vep-file");
 
-			if(params.containsKey("ped-file"))
-				pedFile = params.get("ped-file");
+				if(params.containsKey("ped-file"))
+					pedFile = params.get("ped-file");
 
-			if(params.containsKey("gene-file"))
-				geneFile = params.get("gene-file");
+				if(params.containsKey("gene-file"))
+					geneFile = params.get("gene-file");
 
-			if(params.containsKey("output-file"))
-				outFile = params.get("output-file");
+				if(params.containsKey("output-file"))
+					outFile = params.get("output-file");
 
-			if(params.containsKey("output-vcf"))
-				outVCF = params.get("output-vcf");
+				if(params.containsKey("output-vcf"))
+					outVCF = params.get("output-vcf");
 
-			if(params.containsKey("inheritance"))
-				inheritanceModel = params.get("inheritance");
+				if(params.containsKey("inheritance"))
+					inheritanceModel = params.get("inheritance");
+
+			}
+			catch(Exception e)
+			{
+				System.err.println("Error: Exception thrown while parsing input/output parameters: " + e.getMessage());
+				System.exit(1);
+			}
+
+		}
+
+
+
+		// Set default scores for segregation patterns //
+
+		double scoreCaseRef = 1.00;
+		double scoreCaseHet = 1.00;
+		double scoreCaseHom = 1.00;
+		double scoreCaseMissing = 1.00;
+		double scoreControlHet = 1.00;
+		double scoreControlHom = 1.00;
+		double scoreControlMissing = 1.00;
+		Integer minDepth = 20;
+		double maxVAFforRef = 0.05;
+		double minVAFtoRecall = 0.20;
+
+		if(inheritanceModel.equals("recessive"))
+		{
+			// Recessive inheritance assumptions //
+			scoreCaseRef = 0.10;
+			scoreCaseHet = 0.50;	// For non-compound hets, let's penalize a het case //
+			scoreControlHet = 1.00;	// No penalty as control could be carrier
+			scoreControlHom = 0.50;
+			scoreCaseMissing = 0.60;
+			scoreControlMissing = 0.80;
+		}
+		else
+		{
+			// Dominant and X-linked inheritance assumptions //
+			scoreCaseRef = 0.20;
+			scoreCaseHom = 0.80;
+			scoreCaseMissing = 0.80;
+			scoreControlMissing = 0.50;
+			scoreCaseHet = 1.00;
+			scoreControlHet = 0.10;
+			scoreControlHom = 0.01;
+		}
+
+		// Try to get the user's parameter changes //
+
+		try {
+			if(params.containsKey("seg-score-case-ref"))
+				scoreCaseRef = Double.parseDouble(params.get("seg-score-case-ref"));
+
+			if(params.containsKey("seg-score-case-het"))
+				scoreCaseHet = Double.parseDouble(params.get("seg-score-case-het"));
+
+			if(params.containsKey("seg-score-case-hom"))
+				scoreCaseHom = Double.parseDouble(params.get("seg-score-case-hom"));
+
+			if(params.containsKey("seg-score-control-het"))
+				scoreControlHet = Double.parseDouble(params.get("seg-score-control-het"));
+
+			if(params.containsKey("seg-score-control-hom"))
+				scoreControlHom = Double.parseDouble(params.get("seg-score-control-hom"));
+
+			if(params.containsKey("min-read-depth"))
+				minDepth = Integer.parseInt(params.get("min-read-depth"));
+
+			if(params.containsKey("max-vaf-for-ref"))
+				maxVAFforRef = Double.parseDouble(params.get("max-vaf-for-ref"));
+
+			if(params.containsKey("min-vaf-to-recall"))
+				minVAFtoRecall = Double.parseDouble(params.get("min-vaf-to-recall"));
+
+		}
+		catch(Exception e)
+		{
+			System.err.println("Warning: Exception thrown while parsing segregation score parameters: " + e.getMessage());
+			System.exit(1);
 		}
 
 
@@ -500,8 +584,8 @@ public class PrioritizeVCF {
 
         		    					}
 
-        		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth);
-        		    					double segScore = getSegregationScore(chrom, inheritanceModel, segStatus, params);
+        		    					String segStatus = MendelScan.getSegregationStatus(genotypesBySample, minDepth, maxVAFforRef, minVAFtoRecall);
+        		    					double segScore = getSegregationScore(chrom, inheritanceModel, segStatus, scoreCaseRef, scoreCaseHom, scoreCaseMissing, scoreControlMissing, scoreCaseHet, scoreControlHet, scoreControlHom);
 
 //        		    					System.out.println(vepKey + "\t" + segStatus + "\t" + segScore);
 
@@ -709,67 +793,9 @@ public class PrioritizeVCF {
 	 * @param	status	Type of file ("positions" or "regions")
 	 * @return			Double of resulting population score for this variant
 	 */
-	static double getSegregationScore(String chrom, String inheritanceMode, String segStatus, HashMap<String, String> params)
+	static double getSegregationScore(String chrom, String inheritanceMode, String segStatus, Double scoreCaseRef, Double scoreCaseHom, Double scoreCaseMissing, Double scoreControlMissing, Double scoreCaseHet, Double scoreControlHet, Double scoreControlHom)
 	{
 		double segScore = 0.000;
-
-		// Set default scores for segregation patterns //
-
-		double scoreCaseRef = 1.00;
-		double scoreCaseHet = 1.00;
-		double scoreCaseHom = 1.00;
-		double scoreCaseMissing = 1.00;
-		double scoreControlHet = 1.00;
-		double scoreControlHom = 1.00;
-		double scoreControlMissing = 1.00;
-
-		if(inheritanceMode.equals("recessive"))
-		{
-			// Recessive inheritance assumptions //
-			scoreCaseRef = 0.10;
-			scoreCaseHet = 0.50;	// For non-compound hets, let's penalize a het case //
-			scoreControlHet = 1.00;	// No penalty as control could be carrier
-			scoreControlHom = 0.50;
-			scoreCaseMissing = 0.60;
-			scoreControlMissing = 0.80;
-		}
-		else
-		{
-			// Dominant and X-linked inheritance assumptions //
-			scoreCaseRef = 0.20;
-			scoreCaseHom = 0.80;
-			scoreCaseMissing = 0.80;
-			scoreControlMissing = 0.50;
-			scoreCaseHet = 1.00;
-			scoreControlHet = 0.10;
-			scoreControlHom = 0.01;
-
-		}
-
-
-		// Try to get the user's parameter changes //
-
-		try {
-			if(params.containsKey("seg-score-case-ref"))
-				scoreCaseRef = Double.parseDouble(params.get("seg-score-case-ref"));
-
-			if(params.containsKey("seg-score-case-het"))
-				scoreCaseHet = Double.parseDouble(params.get("seg-score-case-het"));
-
-			if(params.containsKey("seg-score-case-hom"))
-				scoreCaseHom = Double.parseDouble(params.get("seg-score-case-hom"));
-
-			if(params.containsKey("seg-score-control-het"))
-				scoreControlHet = Double.parseDouble(params.get("seg-score-control-het"));
-
-			if(params.containsKey("seg-score-control-hom"))
-				scoreControlHom = Double.parseDouble(params.get("seg-score-control-hom"));
-
-		}
-		catch(Exception e)
-		{
-			System.err.println("Warning: Exception thrown while parsing segregation score parameters: " + e.getMessage());
-		}
 
 		// We expect all affected to be heterozygous, all controls to be reference
 		String[] segContents = segStatus.split("\t");
