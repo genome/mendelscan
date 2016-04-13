@@ -37,6 +37,7 @@ public class SharedIBD {
 		"\t--output-file\tOutput file to contain IBD markers with chromosomal coordinates\n" +
 		"\t--output-windows\tOutput file to contain RHRO windows. Otherwise they print to STDOUT\n" +
 		"\t--ibd-score-threshold\tMaximum Beagle FastIBD score below which segments will be used [10e-10]\n" +
+		"\t--window-resolution\tWindow size in base pairs to use for SIBD region binning [100000]\n" +
 		"\t--inheritance\tPresumed model of inheritance: dominant, recessive, x-linked [dominant]\n";
 
 		String pedFile = null;
@@ -76,11 +77,23 @@ public class SharedIBD {
 			{
 				ibdScoreThreshold = params.get("ibd-score-threshold");
 				try {
-					System.err.println("IBD score threshold: " + Double.valueOf("10E-10"));
+					System.err.println("IBD score threshold: " + Double.valueOf(ibdScoreThreshold));
 				}
 				catch (Exception e)
 				{
 					System.err.println("Warning: invalid IBD score threshold provided; please use scientific notation e.g. 10E-10\n");
+					return;
+				}
+			}
+
+			if(params.containsKey("window-resolution"))
+			{
+				try {
+					windowResolution = Integer.parseInt(params.get("window-resolution"));
+				}
+				catch(Exception e)
+				{
+					System.err.println("Error: unable to parse an integer window resolution from the value you provided. Provide something like: 100000\n");
 					return;
 				}
 			}
@@ -264,7 +277,7 @@ public class SharedIBD {
         					Integer index2 = Integer.parseInt(lineContents[3]);
         					Double pvalue = Double.valueOf(lineContents[4]);
 
-        					if(pvalue < Double.valueOf("10E-10"))
+        					if(pvalue < Double.valueOf(ibdScoreThreshold))
         					{
         						// IBD segment significant //
         						if(stats.containsKey("IBD segments significant"))
